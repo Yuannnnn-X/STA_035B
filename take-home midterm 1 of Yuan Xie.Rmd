@@ -1,0 +1,402 @@
+---
+title: 'Take Home Exam 1 - Healthcare Data'
+author: "Yuan Xie"
+date: "2025-02-04"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,eval = TRUE) # when you knit for submitting, change eval = FALSE to TRUE, so your codes can be evaluated and present results.
+```
+
+Instructions
+Download the datasets and load them into R: messy_health_records.csv, patients.csv, and medications.csv
+
+Answer all questions. Provide explanations alongside your R code.
+Ensure clear and well-commented R code. Your code should be reproducible.
+Include tables, graphs, and visualizations where applicable.
+Cite sources if using external packages beyond tidyverse.
+Submit a PDF onto Gradescope
+
+A PDF document with responses, R code, and interpretations and R appendix.
+A .R script file containing all R code may be requested during grading. Do not submit before you get a request from teaching staff.
+
+```{r}
+library(tidyverse)
+```
+
+## Import Dataset
+
+```{r}
+# import the datasets
+
+# messy_health_records.csv -> messy_health_records
+messy_health_records <- read_csv("messy_health_records.csv")
+
+# patients.csv -> patients
+patients <- read_csv("patients.csv")
+
+# medications.csv -> medications
+medications <- read_csv("medications.csv")
+```
+
+```{r}
+# briefly know the structures of the three csv files with head()
+head(messy_health_records)
+head(patients)
+head(medications)
+```
+
+---
+
+## Question 1: Data Cleaning and Preprocessing (20 points)
+Using the Messy Health Records Dataset, perform the following tasks:
+
+1. Check for missing values and provide a summary.
+2. Handle missing values (e.g., impute, remove, or fill) and justify your choices.
+3. Convert incorrect data types, ensuring visit_date is in Date format.
+4. Remove duplicate records, if any. Show how many were found and removed.
+5. Detect and handle outliers in cholesterol_level and patient_age using the IQR method.
+
+Deliverables:
+- R code for cleaning
+- Summary tables before and after cleaning
+- Justifications for all cleaning decisions
+
+```{r}
+# Here is Part 1 of Question 1.
+# check for missing values by counting the numbers of missing values in all columns
+missing_values_summary_11 <- colSums(is.na(messy_health_records))
+missing_values_summary_11
+
+# Here is Part 2 of Question 1.
+# use drop_na() to remove those rows with missing values
+# there are thousands of records, it is okay to drop those rows with NA
+messy_health_records_12 <- messy_health_records %>% drop_na()
+messy_health_records_12
+
+# Here is Part 3 of Question 1.
+# use ymd() in lubridate package to convert visit_date into Date format
+messy_health_records_13 <- messy_health_records_12 %>%
+  mutate(visit_date = ymd(visit_date))
+messy_health_records_13
+
+# Here is Part 4 of Question 1.
+# remove those repetitive rows by using distinct()
+messy_health_records_14 <- messy_health_records_13 %>% distinct()
+messy_health_records_14
+# count the number of total rows after finishing Part 3 with nrow()
+row_count <- nrow(messy_health_records_13)
+# count the number of unique rows after finishing Part 3 with n_distinct()
+unique_row_count <- n_distinct(messy_health_records_13)
+# the number of duplicate rows is just the difference between row_count and unique_row_count
+duplicates <- row_count - unique_row_count
+duplicates
+
+# Here is Part 5 of Question 1.
+# calculate the upper and lower quantiles of cholesterol_level with quantile()
+# the lower quartile is 0.25
+cho25 <- quantile(messy_health_records_14$cholesterol_level, 0.25, na.rm = TRUE)
+# the upper quartile is 0.75
+cho75 <- quantile(messy_health_records_14$cholesterol_level, 0.75, na.rm = TRUE)
+# Interquartile range = upper quartile - lower quartile
+IQR_cho <- cho75 - cho25
+# consider the outliers as 1.5 interquartile range smaller than cho25 or greater than cho75
+lower_bound_cho <- cho25 - 1.5 * IQR_cho
+upper_bound_cho <- cho75 + 1.5 * IQR_cho
+
+# calculate the upper and lower quartiles of patient_age with quantile()
+# the lower quartile is 0.25
+age25 <- quantile(messy_health_records_14$patient_age, 0.25, na.rm = TRUE)
+# the upper quartile is 0.75
+age75 <- quantile(messy_health_records_14$patient_age, 0.75, na.rm = TRUE)
+# Interquartile range = upper quartile - lower quartile
+IQR_age <- age75 - age25
+# consider the outliers as 1.5 interquartile range smaller than cho25 or greater than cho75
+lower_bound_age <- age25 - 1.5 * IQR_age
+upper_bound_age <- age75 + 1.5 * IQR_age
+
+# use filter() to remain those ordinary records
+messy_health_records_15 <- messy_health_records_14 %>%
+  # normal cholesterol_level should be between lower_bound_cho and upper_bound_cho
+  filter(cholesterol_level >= lower_bound_cho & cholesterol_level <= upper_bound_cho) %>%
+  # normal patient_age should be between lower_bound_age and upper_bound_age
+  filter(patient_age >= lower_bound_age & patient_age <= upper_bound_age)
+messy_health_records_15
+```
+Explanation for part 2: There are thousands of records in this tibble, dropping those rows with NA will not greatly affect the result and conclusion of the data analysis.
+
+---
+
+## Question 2: Data Transformation & Feature Engineering (20 points)
+After cleaning the dataset, perform the following transformations:
+
+1. Create a new column visit_month by extracting the month from visit_date.
+2. Create a categorical column patient_age_group that groups patients into:
+    "Young" (18-35)
+    "Middle-aged" (36-60)
+    "Senior" (61+)
+3. Create a new column cholesterol_risk, categorizing levels as:
+    "Low" (<160 mg/dL), "Moderate" (160-200 mg/dL), "High" (>200 mg/dL)
+4. Summarize the number of visits per hospital location and condition using a pivot function.
+
+Deliverables:
+- R code for transformations
+- A table showing new columns and pivoted data
+- Explanation of transformations and insights
+
+```{r}
+# Here is Part 1 of Question 2.
+# continued from Part 5 of Question 1
+messy_health_records_21 <- messy_health_records_15 %>%
+  # use month() in lubridate package and mutate() to add the new column
+  mutate(visit_month = month(visit_date))
+messy_health_records_21
+
+# Here is Part 2 of Question 2.
+# add the new column called "patient_age_group" with mutate()
+messy_health_records_22 <- messy_health_records_21 %>%
+  # there are 3 cases. Use case_when() to separate the 3 cases.
+  mutate(patient_age_group = case_when(
+    patient_age >= 18 & patient_age <= 35 ~ "Young",
+    patient_age >= 36 & patient_age <= 60 ~ "Middle-aged",
+    patient_age >= 61 ~ "Senior"))
+messy_health_records_22
+
+# Here is Part 3 of Question 2.
+# similarly, add the new column called "cholesterol_risk" with mutate()
+messy_health_records_23 <- messy_health_records_22 %>%
+  # similarly, there are 3 cases. Use case_when() to separate the 3 cases.
+  mutate(cholesterol_risk = case_when(
+    cholesterol_level < 160 ~ "Low",
+    cholesterol_level >= 160 & cholesterol_level <= 200 ~ "Moderate",
+    cholesterol_level > 200 ~ "High"))
+messy_health_records_23
+
+# Here is Part 4 of Question 2.
+messy_health_records_24 <- messy_health_records_23 %>%
+  # per hospital location and condition means we need to use group_by() to separate
+  group_by(hospital_location, condition) %>%
+  # count the number of patients per hospital with the same condition
+  summarize(visit_count = n()) %>%
+  # change the NA to 0 with replace_na()
+  # mutate should be used to help keep the list structure
+  mutate(visit_count = replace_na(visit_count, 0)) %>% 
+  # convert the data frame to wider form with pivot_wider()
+  # names_from and values_from are two parameters
+  pivot_wider(names_from = condition, values_from = visit_count)
+messy_health_records_24
+```
+
+---
+
+## Question 3: Data Joining and Merging (20 points)
+Using the Patient Data and Medication Data, perform the following:
+
+1. Merge the patient dataset using patient_id and the health records dataset.
+2. Merge the medication dataset using condition and the health records dataset.
+3. Filter out records where dosage_mg exceeds 200 mg (possible data inconsistencies).
+4. Identify the top 5 most frequently treated conditions, showing their total patient count.
+
+Deliverables:
+- R code for merging datasets
+- A table showing the merged dataset structure
+- The top 5 most common conditions
+
+```{r}
+# Here is Part 1 of Question 3.
+# continued from Part 3 of Question 2
+health_record_31 <- messy_health_records_23 %>%
+  # use left_join() to join the two datasets according to the "patient_id" column
+  left_join(patients, by = "patient_id")
+health_record_31
+
+# Here is Part 2 of Question 3.
+health_record_32 <- health_record_31 %>%
+  # use left_join() to join the two datasets according to the "condition" column
+  left_join(medications, by = "condition")
+health_record_32
+
+# Here is Part 3 of Question 3.
+health_record_33 <- health_record_32 %>%
+  # use filter() to remain those rows we need here
+  filter(dosage_mg <= 200)
+health_record_33
+
+# Here is Part 4 of Question 3.
+# continued from Part 2 because all diabetes cases are filtered in Part 3 of Question 3
+health_record_34 <- health_record_32 %>%
+  # count the conditions and call the count number column as patient_count
+  count(condition, name = "patient_count") %>%
+  # arrange them in a descending order
+  arrange(desc(patient_count)) %>%
+  # show the top 5 rows
+  head(5)
+health_record_34
+```
+
+---
+
+## Question 4: Exploratory Data Analysis (EDA) (20 points)
+Using the cleaned and merged dataset, analyze key healthcare trends:
+
+1. What is the average cholesterol level per patient_age_group? Show a summary table and a boxplot.
+2. What percentage of patients received medication? Show a bar chart.
+3. Which hospital location treated the highest number of patients? Show a summary table.
+4. Create a time series plot of total patient visits per month.
+
+Deliverables:
+- At least 3 visualizations
+- Summary statistics for key insights
+- Explanation of findings
+
+```{r}
+# Here is Part 1 of Question 4.
+# continued from Part 2 of Question 3
+cholesterol_41 <- health_record_32 %>%
+  # separate patient_age_group with group_by() function
+  group_by(patient_age_group) %>%
+  # calculate the average cholesterol level with summarise() and mean()
+  summarise(average_cholesterol = mean(cholesterol_level, na.rm = TRUE))
+cholesterol_41
+# draw the boxplot with ggplot()
+# the x-axis is patient_age_group and the y-axis is cholesterol_level
+ggplot(health_record_33, aes(x = patient_age_group, y = cholesterol_level)) +
+  geom_boxplot(fill = "skyblue", color = "black") +
+  # name the title, x-axis and y-axis
+  labs(title = "Cholesterol Level Distribution by Age Group",
+       x = "Patient Age Group",
+       y = "Cholesterol Level (mg/dL)")
+
+# Here is Part 2 of Question 4.
+# there is a column called medication_given in health_record_33 tibble
+medication_42 <- health_record_32 %>%
+  # separate Yes or No in medication_given column with group_by() function
+  group_by(medication_given) %>%
+  # count patients who received or not
+  summarise(patient_count = n()) %>%
+  # add a new column to show the percentage of receving or not
+  mutate(percentage = (patient_count / sum(patient_count)) * 100)
+medication_42
+# draw the bar chart with ggplot()
+# the x-axis is medication_given and the y-axis is percentage
+ggplot(medication_42, aes(x = medication_given, y = percentage)) +
+  # let the Y-axis directly use the values in the data
+  geom_bar(stat = "identity", fill = "skyblue") +
+  # name the title, x-axis and y-axis
+  labs(title = "Percentage of Patients Receiving Medication",
+       x = "Medication Given",
+       y = "Percentage (%)")
+
+# Here is Part 3 of Question 4.
+hospital_43 <- health_record_32 %>%
+  # separate different cities in hospital_location column with group_by() function
+  group_by(hospital_location) %>%
+  # count the numbers of treatments in different cities
+  summarise(treatment_count = n()) %>%
+  # arrange the numbers of treatments in descending order
+  arrange(desc(treatment_count))
+hospital_43
+
+# Here is Part 4 of Question 4.
+visits_44 <- health_record_32 %>%
+  # add a new column to get the month of the visit_date
+  # just use month() function in lubridate package
+  mutate(visit_month = month(visit_date)) %>%
+  # separate different months in visit_month column with group_by() function
+  group_by(visit_month) %>%
+  # count the total number of visits in each month
+  summarise(total_visits = n())
+visits_44
+# draw the line chart with ggplot()
+# the x-axis is visit_month and the y-axis is total_visits
+ggplot(visits_44, aes(x = visit_month, y = total_visits)) +
+  # show the line
+  geom_line(color = "blue", linewidth = 1) +
+  # show the points
+  geom_point(color = "red", size = 2) +
+  # make sure the x-axis scale is just at 1,2,3..., 12
+  scale_x_continuous(breaks = 1:12) + 
+  # name the title, x-axis and y-axis
+  labs(title = "Monthly Patient Visits",
+       x = "Month",
+       y = "Total Patient Visits")
+```
+
+---
+
+## Question 5: Healthcare Insights & Recommendations (10 points)
+Based on your analysis:
+
+1. Which age group has the highest cholesterol levels? Provide evidence.
+2. Which condition is most frequently treated across all hospitals? Explain any patterns found.
+3. What recommendations would you give to improve patient health outcomes based on your findings?
+
+Deliverables:
+- Written answers with supporting evidence
+- Healthcare recommendations based on findings
+
+1. According to my data analysis in Part 1 of Question 4, middle-aged people tend to have the highest cholesterol levels because they have the highest average cholesterol level (185.7108). However, there is very small difference in cholesterol levels among the three age groups.
+
+2. Generally, diabetes is the most common kind of condition according to Part 4 of Question 3. Specifically, according to Part 4 of Question 2, hypertension is the most frequent one in Chicago, obesity is the most frequent one in Houston, obesity is the most frequent one in LA, asthma is the most frequent one in Miami, and diabetes is the most frequent one in NYC.
+
+3. First of all, all of the diseases analyzed are actually linked to obesity. American society needs to promote healthy eating habits. At the same time, Chicago needs more resources to treat hypertension, Houston and LA need more resources to treat obesity, Miami needs more resources to treat asthma, and NYC needs more resources to treat diabetes.
+
+---
+
+## Question 6: Identifying High-Risk Patients(10 points)
+Estimate patient risk levels based on their cholesterol level and blood pressure category.
+
+· Define high_risk as patients with High cholesterol (>200 mg/dL) AND Stage 2 Hypertension.
+· Rank the top 10 most at-risk patients based on cholesterol and blood pressure data.
+· Provide a scatter plot showing cholesterol level vs. patient age.
+
+Deliverables:
+- R code for risk level estimation
+- Ranked list of top 10 high-risk patients
+- Scatter plot
+
+```{r}
+# Here is Parts 1 and 2 of Question 6.
+# continued from Part 2 of Question 3
+high_risk_patients_61 <- health_record_32 %>%
+  # filter rows which satisfy the definition of high-risk
+  filter(cholesterol_level > 200 & blood_pressure == "Stage 2 Hypertension") %>%
+  # arrange the cholesterol_level in descending order
+  # do not need to arrange "Stage 2 Hypertension"
+  arrange(desc(cholesterol_level))
+# get the top 10 most at-risk patients with head(10)
+high_risk_patients_62 <- high_risk_patients_61 %>% head(10)
+high_risk_patients_62
+
+# Here is Part 3 of Question 6.
+# continued from Part 2 of Question 6
+# draw the scatter plot with ggplot()
+ggplot(high_risk_patients_62, aes(x = patient_age, y = cholesterol_level)) +
+  # the x-axis is patient_age and the y-axis is cholesterol_level 
+  geom_point(data = high_risk_patients_62, aes(x = patient_age, y = cholesterol_level), color = "red", size = 2) +
+  # name the title, x-axis and y-axis
+  labs(title = "Cholesterol Level vs. Patient Age",
+       x = "Patient Age",
+       y = "Cholesterol Level (mg/dL)")
+```
+
+---
+
+Final Submission Requirements
+PDF file containing all responses, explanations, tables, and visualizations.
+.R script file with well-commented, reproducible code.
+Submit your pdf onto Gradescope. We will request your R script file if necessary.
+
+Final Notes
+You should explain your method or justification in a paragraph(s) for each sub questions.
+Proofread before submitting.
+Ensure all R code runs without errors.
+Ask questions early if anything is unclear.
+
+  
+# R Appendix
+
+```{r, ref.label=knitr::all_labels(), eval = F, echo = T}
+
+```

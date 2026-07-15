@@ -1,0 +1,619 @@
+---
+title: 'Homework 2: Movie Rating (Continued)'
+author: "Yuan Xie (921783260)"
+date: "2025-01-28"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,eval = TRUE) # when you knit for submitting, change eval = FALSE to TRUE, so your codes can be evaluated and present results.
+```
+
+## Collaboration Policy
+
+You may discuss the homework with others, but we ask that you write your solutions individually. If you do discuss the assignments with others, please include their names.
+
+**Collaborators:** Zijun Liu; Nikhil Karthikeyan
+
+
+## Due Date: Thursday, 11:59 PM 1/30/2025 onto Gradescope
+
+
+## Movie Data Analysis (Continued)
+
+**Datasets:** 
+1. [IMDB Title Basics](https://datasets.imdbws.com/title.basics.tsv.gz)
+2. [IMDB Ratings](https://datasets.imdbws.com/title.ratings.tsv.gz)
+3. [IMDB Akas](https://datasets.imdbws.com/title.akas.tsv.gz)
+---
+
+### Objectives:
+- Inspect and clean movie datasets.
+- Chaining different `tidyverse` functions and methods to find answers to exploratory questions.
+
+---
+
+### Instructions:
+
+1. Use the provided IMDB datasets for this assignment.
+2. Use R and the `tidyverse` package for your analysis.
+3. Answer the following questions by writing code in the chunks provided or by writing text after **Answer:**. 
+
+```{r}
+library(tidyverse)
+```
+
+
+## Question 0: Import Dataset
+
+Let's load `title.basics2.csv`, `title.ratings.tsv` and `title.akas2.csv` into `tibble` data frames with the following names:`basics`, `ratings`, and `akas` respectively.
+
+
+```{r}
+# import your datasets
+basics <- read_csv("title.basics2.csv") # title.basics2.csv -> basics
+ratings <- read_tsv("title.ratings.tsv") # title.ratings.tsv -> ratings
+akas <- read_csv("title.akas2.csv") # title.akas2.csv -> akas
+```
+
+---
+
+## Question 1: Inspecting Dataset
+
+### Question 1a: How many titles in `akas`?
+
+Let's start by looking at the first 5 rows of `akas`.
+
+```{r}
+# show the first 5 rows of akas
+head(akas, 5)
+```
+
+How many unique titles are in the `akas` dataset? 
+
+
+```{r}
+# show the number of unique titles
+number_of_unique_title = akas %>% # first select the title column, then count the distinct rows
+  select(title) %>% distinct() %>% nrow()
+head(number_of_unique_title)
+```
+
+We observe multiple records for a title based on released regions or the language of the title. 
+
+### Question 1b: Create `max_order`
+
+We want to examine `ordering` column in `akas` dataset. Create a vector `max_order` which contains the maximum number of `ordering` for each unique title. 
+
+```{r}
+max_order = (akas %>%
+  group_by(titleId) %>% # separate by title first
+  summarize(max_order = max(ordering)))$max_order # add the new column and pull it out
+head(max_order)
+```
+
+### Question 1c: Handling regions and languages
+
+We want to have all regions in one vector `all_regions` and all languages in one vector `all_languages`. Some titles were released in multiple regions and different languages. We want to have all regions and all language values for unique titles. 
+
+For example, 
+
+|titleId   |all_regions           |all_languages |
+|:---------|:---------------------|:-------------|
+|tt0250636 |DE,US,HU              |              |
+|tt0264606 |EC,GB,US,ES,XEU,HU,GR |en            |
+
+Let's create the vectors first. You will have one data frame at the end of question 1. 
+
+
+```{r}
+all_regions = (akas %>% 
+  # remove the "\\\\N" in the column of region
+  mutate(region = str_remove(region, "\\\\N")) %>%
+  group_by(titleId) %>%
+  # add those unique regions into "all_regions" and separate them with commas
+  mutate(all_regions = paste(unique(region), collapse = ",")) %>%
+  # remove the first comma because "\\\\N" is removed, there would be an extra comma
+  # regular expression, ^ can strip the first required string
+  mutate(all_regions = str_remove(all_regions, "^,"))  %>%
+  # distinct is used to avoid repetition
+  distinct(titleId, all_regions))$all_regions
+head(all_regions)
+```
+
+
+```{r}
+all_languages = (akas %>% 
+  # remove the "\\\\N" in the column of language
+  mutate(language = str_remove(language, "\\\\N")) %>%
+  group_by(titleId) %>%
+  # add those unique languages into "all_languages" and separate them with commas
+  mutate(all_languages = paste(unique(language), collapse = ",")) %>%
+  # remove the first comma because "\\\\N" is removed, there would be an extra comma
+  # regular expression, ^ can strip the first required string
+  mutate(all_languages = str_remove(all_languages, "^,"))  %>%
+  # distinct is used to avoid repetition
+  distinct(titleId, all_languages))$all_languages
+head(all_languages)
+```
+
+### Question 1d: Create `akas_short`
+
+Let's create `akas_short` data frame which has `titleId`, `max_order`, `title`, `all_regions`, `all_languages`, `num_of_regions`, and `num_of_languages`. For example:
+
+|titleId   | max_order|all_regions           |all_languages | num_of_regions| num_of_languages|
+|:---------|------------:|:---------------------|:-------------|-----------:|-------------:|
+|tt0250636 |            5|DE,US,HU              |              |           3|            NA|
+|tt0264606 |            8|EC,GB,US,ES,XEU,HU,GR |en            |           7|             1|
+
+
+```{r}
+akas_short = akas %>%
+  # Remove "\\\\N" in the columns of region and language and it will change to NA
+  mutate(
+    region = str_remove(region, "\\\\N"),
+    language = str_remove(language, "\\\\N")
+  ) %>%
+  # add the 3 columns initially and further changes will take place
+  group_by(titleId) %>%
+  mutate(
+    max_order = max(ordering, na.rm = TRUE), # Get max_order for each titleId
+    all_regions = paste(unique(region[!is.na(region)]), collapse = ","),
+    all_languages = paste(unique(language[!is.na(language)]), collapse = ",")
+  ) %>%
+  # remove the first comma because "\\\\N" is removed, there would be an extra comma
+  # regular expression, ^ can strip the first required string
+  mutate(
+    all_regions = str_remove(all_regions, "^,"),
+    all_languages = str_remove(all_languages, "^,")
+  ) %>%
+  # Count number of regions and languages
+  # the actual number should be "number of commas + 1" for both cases
+  mutate(
+    num_of_regions = if_else(all_regions == "", NA, str_count(all_regions, ",") + 1),
+    num_of_languages = if_else(all_languages == "", NA, str_count(all_languages, ",") + 1)
+  ) %>%
+  # distinct is used to avoid repetition
+  distinct(titleId, max_order, title, all_regions, all_languages, num_of_regions, num_of_languages) 
+
+glimpse(akas_short)
+```
+
+### Question 1e
+
+What title name(s) has(have) the largest maximum number of ordering? Report the primary title and the maximum number of ordering.
+
+```{r}
+# What title name(s) has(have) the largest maximum number of ordering?
+ordered_titles <- akas_short %>%
+  arrange(desc(max_order)) %>% # get the one with the maximum number of ordering
+  select(titleId, max_order)
+head(ordered_titles)
+ordered_titleId <- ordered_titles$titleId[1]
+(ordered_title <- akas %>%
+  filter(titleId == ordered_titleId) %>%
+  distinct(titleId, title) %>%
+  head(1)) # only show the primary title here
+
+# This part is about the question What title name(s) was(were) released in most regions?
+most_regions <- akas_short %>%
+  drop_na(num_of_regions) %>%  
+  filter(num_of_regions == max(num_of_regions, na.rm = TRUE)) %>%  
+  select(titleId, num_of_regions, all_regions) %>%
+  arrange(desc(num_of_regions))
+head(most_regions)
+region_titleId <- most_regions$titleId[1]
+(region_title <- akas %>%
+  filter(titleId == region_titleId) %>%
+  distinct(titleId, title) %>%
+  head(1)) # only show the primary title here
+
+# This part is about the question  What title name(s) was(were) released in most different languages?
+most_languages <- akas_short %>%
+  drop_na(num_of_languages) %>%  
+  filter(num_of_languages == max(num_of_languages, na.rm = TRUE)) %>%  
+  select(titleId, num_of_languages, all_languages) %>%
+  arrange(desc(num_of_languages))
+head(most_languages)
+language_titleId <- most_languages$titleId[1]
+(language_title <- akas %>%
+  filter(titleId == language_titleId) %>%
+  distinct(titleId, title) %>%
+  head(1)) # only show the primary title here
+```
+ 
+**Answer:** The Amazing Spider-Man has the largest maximum number of ordering. The maximum number is 72. The Amazing Spider-Man was released in 57 regions and it was the most number of regions. Atlantis: The Lost Empire was released in 13 languages and it was the most number of languages.
+
+---
+
+## Question 2: Check `basics` data frame
+
+### Question 2a: 
+
+We want to re-categorize `titleType` to "movie", "short", "tv", and "video" in `type` vector. The class of the `type` vector is a factor. For example,
+
+|titleType |type  |
+|:---------|:-----|
+|short     |short |
+|tvSeries  |tv    |
+|movie     |movie |
+|movie     |movie |
+
+```{r}
+type = (basics %>%
+  # add the new column called type
+  mutate(type = case_when(
+      str_detect(titleType, "movie") ~ "movie",                        
+      str_detect(titleType, "short") ~ "short",                       
+      str_detect(titleType, "tv") ~ "tv",  
+      str_detect(titleType, "video") ~ "video"),
+      type = as.factor(type))
+  )$type # get the column type
+head(type, 15)
+```
+
+```{r}
+is.factor(type)
+```
+
+
+### Question 2b: Is the `primaryTitle` the same as the `originalTitle`?
+
+The `primaryTitle` is the more popular title / the title used by the filmmakers on promotional materials at the point of release. The `originalTitle` is original title, in the original language. We want to see if how many primary titles are same as the original titles. 
+
+Create `isSameTitle` a boolean vector indicating if the title has the same name (TRUE) or not (FALSE).
+
+```{r}
+isSameTitle = (basics %>%
+  mutate(isSameTitle = primaryTitle == originalTitle)
+  )$isSameTitle
+head(isSameTitle)
+sum(isSameTitle)
+mean(isSameTitle)
+```
+
+How many primary titles are the same as the original titles?
+
+**Answer:** 6594 primary titles are the same as the original titles.
+
+### Question 2c: Create Time variables
+
+Let's covert strings to time objects (class 'Period'). We see `startYear` and `runtimeMinutes` are stored in characters, so we want to convert them to appropriate time objects.
+Create a `startYr` vector (year) from `startYear` and a `runtime` vector (minutes) from  and `runtimeMinutes`.
+
+```{r}
+startYr = (basics %>%
+  mutate(startYr = as.numeric(if_else(startYear == "\\N", NA, startYear)))
+  )$startYr
+runtime = (basics %>%
+  mutate(runtime = as.numeric(if_else(runtimeMinutes == "\\N", NA, runtimeMinutes)))
+  )$runtime
+head(startYr)
+head(runtime)
+```
+
+### Question 2d
+
+Let's create a data frame `b1` which contains these variables: `tconst`,`Type`, `primaryTitle`, `isSameTitle`, `startYr`, `runtime`, and `genres` from `basics` or the above manipulation.  
+
+```{r}
+b1 = basics %>%
+  mutate(
+    # the same as part 2a
+    Type = case_when(
+      str_detect(titleType, "movie") ~ "movie",                        
+      str_detect(titleType, "short") ~ "short",                       
+      str_detect(titleType, "tv") ~ "tv",  
+      str_detect(titleType, "video") ~ "video"),
+    # the same as part 2b
+    isSameTitle = primaryTitle == originalTitle,
+    # the same as part 2c
+    startYr = as.numeric(if_else(startYear == "\\N", NA, startYear)),
+    runtime = as.numeric(if_else(runtimeMinutes == "\\N", NA, runtimeMinutes))
+    ) %>%
+  # select the needed columns from the holistic big data frame
+  select(tconst, Type, primaryTitle, isSameTitle, startYr, runtime, genres)
+glimpse(b1)
+```
+
+### Question 2e
+
+Find any trend or relationship between `runtime` and `type` in `b1` data frame. Summarize `runtime` by `type` with descriptive statistics (in form of hour-minute) or graph. 
+
+```{r}
+# separate the runtime by the type of the movies
+b1_filtered <- b1 %>%
+  group_by(Type) %>%
+  summarize(mean_runtime = mean(runtime, na.rm = TRUE)) %>%
+  mutate(Type = as.factor(Type))
+# plot a point graph based on the filtered b1
+# we need to reorder the movies by fct_reorder
+ggplot(b1_filtered, aes(x = mean_runtime, y = fct_reorder(Type, mean_runtime))) +
+  geom_point() +
+  labs(
+    title = "Runtime Distribution by Type",
+    x = "Runtime (minutes)",
+    y = "Count",
+    fill = "Type"
+  )
+```
+
+---
+
+## Question 3: Pivoting and Joining Datasets
+
+### Question 3a: Pivoting Dataset
+
+We want to analyze title ratings by their genres. We will have one genre for each record. 
+
+Use `pivot_` functions to make the following data frame, named `basics_pivot`. It would look like:
+
+|tconst    |titleType |primaryTitle              |startYear |isTV  |isSameTitle |genres  |
+|:---------|:---------|:-------------------------|:---------|:-----|:-----------|:-------|
+|tt0201081 |short     |Shadow Man                |2002      |FALSE |TRUE        |Short   |
+|tt0201485 |movie     |The Body                  |2001      |FALSE |TRUE        |Drama   |
+|tt0201485 |movie     |The Body                  |2001      |FALSE |TRUE        |Mystery |
+|tt0201485 |movie     |The Body                  |2001      |FALSE |TRUE        |Romance |
+
+
+```{r}
+basics_pivot = basics %>%
+  # separate the genres according to the commas
+  separate_wider_delim(genres, delim = ",", names_sep = "_", too_few = "align_start") %>%
+  # use pivot_longer to make the data frame longer according to the genres
+  pivot_longer(cols = starts_with("genres_"), names_to = "genre_column", values_to = "genres") %>%
+  # strip the genres which are NA
+  drop_na(genres) %>%
+  # add the two columns isTV and isSameTitle
+  mutate(
+    isTV = str_detect(titleType, "tv"),
+    isSameTitle = primaryTitle == originalTitle
+  ) %>%
+  # select the needed columns from the holistic big data frame
+  select(tconst, titleType, primaryTitle, startYear, isTV, isSameTitle, genres)
+
+glimpse(basics_pivot)
+```
+
+### Question 3b: Join dataset
+
+Join the `basics_pivot` data with `akas_short` and `ratings` by the `titleId` or `tconst`. We want to keep `num_of_regions` and `num_of_langauges` from `akas_short` and `averageRating` and `numVotes` from `ratings`.
+
+Name the joined data frame as `title_ratings`
+
+```{r}
+title_ratings_whole = basics_pivot %>%
+  # left_join with akas_short first
+  left_join(akas_short %>% select(titleId, num_of_regions, num_of_languages), 
+             by = c("tconst" = "titleId"), relationship = "many-to-many") %>%
+  # left_join with ratings then
+  left_join(ratings %>% select(tconst, averageRating, numVotes), 
+             by = "tconst", relationship = "many-to-many") %>%
+  distinct()
+title_ratings = title_ratings_whole %>%
+  select(num_of_regions, num_of_languages, averageRating, numVotes) %>%
+  distinct()
+glimpse(title_ratings)
+```
+
+---
+
+## Question 4 Exploratory Data Analysis
+
+### Question 4a:	Explore `averageRating` by genre
+
+```{r}
+# this part is for the top 5 highest and lowest scored genres
+genre_rating <- title_ratings_whole %>%
+  filter(genres != "\\N") %>%
+  group_by(genres) %>%  # separate by genres
+  summarise(
+    # use mean here because the question says "averageRating"
+    avg_rating = mean(averageRating, na.rm = TRUE), 
+    count = n() 
+  ) %>%
+  arrange(desc(avg_rating))
+genre_rating
+
+# this part is for presenting a proper graph to show the relationship
+ggplot(genre_rating, aes(x = reorder(genres, avg_rating), y = avg_rating)) +
+  geom_point(stat = "identity") +
+  # make the bars horizontal instead of vertical here
+  # because vertical bars will make the genre names overlap
+  coord_flip() +
+  labs(
+    title = "Average Rating by Different Genres",
+    x = "Genre",
+    y = "Average Rating"
+  )
+```
+
+1.	Report the top 5 highest scored genres.
+
+**Answer:** The top 5 highest scored genres are Game-Show, History, Documentary, Short and Biography.
+
+2.	Report the bottom 5 highest (top 5 lowest) scored genres.
+
+**Answer:** The top 5 lowest scored genres are Western, Adult, Mystery, Thriller and Horror.
+
+3.	Present a proper graph to show the relationship between genre and `averageRating` and interpret it.
+
+**Answer:** It is a point chart in descending order. The highest point has the highest average score while the lowest point has the lowest average score.
+
+### Question 4b:	Explore popularity by genre
+
+```{r}
+# this part is for the top 5 highest and lowest popular genres
+genre_popularity <- title_ratings_whole %>%
+  filter(genres != "\\N") %>%
+  group_by(genres) %>% # separate by genres, the same as the previous question
+  summarise(
+    total_votes = sum(numVotes, na.rm = TRUE), 
+    count = n() 
+  ) %>%
+  arrange(desc(total_votes)) 
+genre_popularity
+
+# this part is for presenting a proper graph to show the relationship
+ggplot(genre_popularity, aes(x = reorder(genres, total_votes), y = total_votes)) +
+  geom_point(stat = "identity") +
+  coord_flip() +
+  labs(
+    title = "Popularity by Different Genres",
+    x = "Genre",
+    y = "Total Votes"
+  ) 
+```
+
+1.	Based on the number of votes, report top 5 most popular genres.
+
+**Answer:** The top 5 popular genres are Action, Drama, Adventure,	Sci-Fi and Comedy.
+
+2.	Report the top 5 least popular genres.
+
+**Answer:** The top 5 least popular genres are Game-Show, Talk-Show, Western, News and Adult.
+
+3.	Present a proper graph to show the relationship between genre and `numVotes` and interpret it.
+
+**Answer:** It is a point chart in descending order. The highest point shows the most popular genre and the lowest point shows the least popular genre.
+
+### Question 4c:	How does the rating change over the start year?
+
+```{r}
+# sort out the data
+yearly_trend <- title_ratings_whole %>%
+  # ensure that only one record is kept for each work in the same year
+  distinct(tconst, startYear, .keep_all = TRUE) %>%
+  # delete rows including NA
+  filter(!is.na(startYear) & !is.na(averageRating) & !is.na(numVotes)) %>%
+  # separate according to startYear
+  group_by(startYear) %>%
+  # summarise the average rating and total votes
+  summarise(
+    avg_rating = mean(averageRating, na.rm = TRUE),  
+    total_votes = sum(numVotes, na.rm = TRUE),
+    )
+yearly_trend
+
+# analyze the vote change over the years
+ggplot(yearly_trend, aes(x = startYear, y = total_votes)) +
+  geom_line(color = "blue") +
+  geom_point(color = "darkblue") +
+  labs(
+    title = "Total Votes Over the Years",
+    x = "Start Year",
+    y = "Total Votes"
+  )
+
+# analyze the averageRatings
+ggplot(yearly_trend, aes(x = startYear, y = avg_rating)) +
+  geom_line(color = "red") +
+  geom_point(color = "darkred") +
+  labs(
+    title = "Average Ratings Over the Years",
+    x = "Start Year",
+    y = "Average Rating"
+  ) 
+
+```
+
+
+1.	How does the number of votes change over the years?
+
+**Answer:** The total number of votes has fluctuated significantly between 2000 and 2025. There were two significant spikes in voting around 2005 and 2015, while the other years saw relatively low and volatile total voting numbers which was about 100000.
+
+2.	How does time trend affect the `averageRatings`?
+
+**Answer:** Average ratings between 2000 and 2025 have generally fluctuated, but have remained roughly stable between 6.0 and 7.0. While there are some large fluctuations in the ratings in some years, such as around 2015 and 2020, the overall trend is upward. 
+
+3.	Present the descriptive statistics and graphs to show the trend of the rating over time and interpret them.
+
+**Answer:** The graphs are shown above. In order to show the trend, it is better to use line charts. The start years are shown on x-axes while total votes or average rating are shown on y-axes.
+
+### Question 4d:	Explore ratings or popularity by their primary Titles. 
+
+```{r}
+# this part is for the first question
+basics_special <- basics %>%
+  mutate(
+    # check whether there are special characters
+    has_special_chars = str_detect(primaryTitle, "[^a-zA-Z0-9\\s]"),
+    # check whether they are different
+    title_differs = primaryTitle != originalTitle
+  )
+basics_special
+special_char_differs <- basics_special %>%
+  group_by(has_special_chars) %>%
+  summarise(
+    # count the number of movies which were changed titles
+    count_differs = sum(title_differs, na.rm = TRUE), 
+    # total count of movies with or without special characters
+    total_count = n(), 
+    # calculate the percentage of movies which were changed their names
+    percent_differs = count_differs / total_count * 100 
+  )
+special_char_differs
+
+# this part is for the second question
+basics_special2 <- basics %>%
+  # left_join "numVotes" in title_ratings_whole
+  left_join(
+    title_ratings_whole %>% select(tconst, numVotes),
+    by = c("tconst" = "tconst")
+  ) %>%
+  mutate(
+    # find the titles with special characters
+    has_special_chars = str_detect(primaryTitle, "[^a-zA-Z0-9 ]"),
+    # test whether the titles are different
+    title_differs = primaryTitle != originalTitle
+  )
+popularity_analysis <- basics_special2 %>%
+  group_by(title_differs) %>%
+  summarise(
+    avg_numVotes = mean(numVotes, na.rm = TRUE),  # average number of votes
+    count = n()  # count the number of titles of every group
+  )
+popularity_analysis
+
+# this part is for the third question
+ratings_analysis <- basics_special %>%
+  # left_join with title_ratings_whole
+  left_join(
+    title_ratings_whole %>% select(tconst, averageRating),
+    by = c("tconst" = "tconst")
+  ) %>%
+  # separate by TRUE or FALSE in has_special_chars column in basics_special
+  group_by(has_special_chars) %>%
+  summarise( # similar to the second part of the question
+    avg_rating = mean(averageRating, na.rm = TRUE),  # average rating
+    count = n()  # count the number of titles of every group
+  )
+ratings_analysis 
+```
+
+
+1.	Do the primary Titles with special characters tend to have different title names from the original Titles?
+
+**Answer:** No. According to the data analysis, only about 2.27% of movies with special characters in titles changed their titles then.
+
+2.	Do you think that popularity (numVotes) has some association with the primary Title that is different from the original Title?
+
+**Answer:** Yes, I agree. This is because movies that were not changed titles have much greater average number of votes.
+
+3.	Do the primary titles with special characters tend to have higher or lower ratings than the others? (Define Special characters as characters excluding letters and numbers)
+
+**Answer:** No, I do not think so. This is because movies that were changed titles had almost the same average ratings as those movies which were not changed their titles.
+
+### Question 4e:	What other questions could help understand what could cause the higher ratings? State your questions. 
+
+**Answer:** How do ratings vary based on different release years? REASON: The popularity of cinemas in different time and the technology used to make movies may affect the audience's feelings.
+
+---
+## Congratulations! You have finished Homework 2 !!!
+
+### Submission Instruction
+1. Submit the pdf document from this r markdown file onto Gradescope.
+2. Assign pages to corresponding questions when you submit your pdf onto Gradescope.
+
+
+  

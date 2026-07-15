@@ -1,0 +1,394 @@
+---
+title: 'Homework 1: Movie Rating'
+author: "Your Name: Yuan Xie 921783260"
+date: "2025-01-17"
+output: 
+  pdf_document:
+    keep_tex: no
+    latex_engine: xelatex
+    
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, eval = TRUE) # when you knit for submitting, change eval = FALSE to TRUE
+```
+
+## Collaboration Policy
+
+You may discuss the homework with others, but we ask that you write your solutions individually. If you do discuss the assignments with others, please include their names. (discussed with Ying Huang)
+
+**Collaborators:** *list collaborators here*
+
+
+## Due Date: Friday, 11:59 PM 1/17/2025 onto Gradescope
+
+## Introduction to Movie Data Analysis
+
+**Original Datasets:** 
+1. [IMDB Title Basics](https://datasets.imdbws.com/title.basics.tsv.gz)
+2. [IMDB Ratings](https://datasets.imdbws.com/title.ratings.tsv.gz)
+3. [IMDB Crew](https://datasets.imdbws.com/title.crew.tsv.gz)
+4. [IMDB Principals](https://datasets.imdbws.com/title.principals.tsv.gz)
+
+---
+
+## Objectives:
+
+We will investigate movie datasets. The main goal for this assignment is to walk through the process of Data Cleaning and familiarize yourself with some tidyverse functions.
+
+- Read CSV files
+- Reading tidyverse documents and using tidyverse
+- Inspect and clean datasets.
+- Handle invalid values effectively.
+- Some basic analysis.
+
+---
+
+## Instructions:
+1. Use the provided IMDB datasets (`title.basics`, `title.ratings`, `title.crew`, and `title.akas`) on Canvas for this assignment.
+2. Use R and the `tidyverse` package for your analysis.
+3. Answer the following questions by writing code in the chunks provided.
+  - Change ... to your code
+  - Make sure using the assigned variable names
+  - Present your final answer with pro-existing code in this template.
+  - **Do not use for loops**
+
+```{r}
+library(tidyverse)
+```
+
+---
+
+## Question 0: Obtaining the Data
+
+Let's load `title.basics.csv`, `title.ratings.csv`, `title.crew.csv` and `title.akas.csv` into `tibble` data frames with the following names:`basics`, `ratings`, `crew`, and `akas` respectively.
+
+```{r}
+# read the 4 csv files and define their arguments here respectively
+basics <- read_csv("title.basics.csv")
+ratings <- read_csv("title.ratings.csv")
+crew <- read_csv("title.crew.csv")
+akas <- read_csv("title.akas.csv")
+```
+
+## Question 1: Examining the Basics Data File.
+
+### Question 1a
+
+`title.basics.csv` contain information about the movie titles. Let's investigate the dataset, starting looking the first 6 rows.
+
+```{r}
+# show the first 6 rows of the file "basics"
+head(basics, 6)
+```
+
+The `basics` contains the contains a column called `title identifier`, which corresponds to a unique identifier of the title. We will first rename the column to `tid` for simplicity.
+
+```{r}
+basics = basics %>%
+  rename(tid = "title identifier") # rename the column to `tid`
+basics
+```
+
+Examine the entries in `basics`. Is the `tid` unique for each record (i.e. each row of data)? Your code should compute the answer, i.e., don't just hard code `True` or `False`.
+
+```{r}
+is_tid_unique = nrow(basics) == n_distinct(basics$`tid`) # test whether they are all distinctive
+is_tid_unique
+```
+
+### Question 1b
+
+We will now work with some important fields in `basics`.
+ 
+1. Assign `top_types` to a data frame containing types and their counts from the most frequent to least frequent.
+
+```{r}
+
+top_types = basics %>%
+  count(titleType, name = "titleTypeCount") %>% # count the numbers and define the number column as "titleTypeCount"
+  arrange(desc(titleTypeCount)) # "from the most frequent to least frequent" means the order of descending
+top_types
+
+```
+
+### Question 1c
+
+Based on the above exploration, what does each record in the `basics` data frame represent?
+
+**Answer**: Each record means each row of the data frame. Here, each record represents the information of one unique title of movie. The information includes title identifier, titleType, primaryTitle, originalTitle, isAdult, startYear, endYear, runtimeMinutes, and
+genres.
+
+---
+
+## Question 2: Cleaning Years
+
+### Question 2a
+
+How many titles are in each `startYear`?
+
+In the cell below, create a vector where the index is the start year and the value is the number of records with that start year. 
+
+```{r}
+
+start_year_counts = basics %>%
+  count(startYear, name = "startYearRecord") %>%
+  arrange(startYear)
+start_year_counts <- deframe(start_year_counts) # use deframe to make the index-value vector
+start_year_counts %>% head()
+
+```
+
+Do you notice any odd/invalid years?
+
+**Answer**: Yes, there are odd/invalid years. It is shown in the last row of the tibble (\\N).
+
+### Question 2b
+
+How many titles are in each `endYear`?
+
+```{r}
+basics %>%
+  count(endYear)
+```
+
+
+In the cell below, create a vector where the index is the end year and the value is the number of records with that end year. 
+
+```{r}
+
+end_year_counts = basics %>%
+  count(endYear, name = "endYearRecord") %>%
+  arrange(endYear)
+end_year_counts <- deframe(end_year_counts) # use deframe to make the index-value vector
+end_year_counts %>% head()
+
+```
+
+Do you notice any odd/invalid years?
+
+**Answer**: Yes, there are odd/invalid years. It is shown in the last row of the tibble (\\N).
+
+### Question 2b
+
+How many titles do not have valid start year? How many titles do not have valid end year? 
+
+**Answer**: 971 titles do not have a valid start year. 7288 titles do not have a valid end year.
+
+### Question 2c
+
+Construct a data frame containing only the titles which do not have valid start year.
+
+```{r}
+
+invalid_start_year_basics = basics %>%
+  filter(startYear == "\\N")
+invalid_start_year_basics
+```
+
+### Question 2d
+
+If we were to drop titles with invalid start years, what type(s) of titles would we be excluding? In other words, is there any commonality among titles with invalid start years?
+
+**Answer**: Titles with invalid startYear are likely movies that were announced but never completed or published. These titles often have incomplete or unclear data.
+
+### Question 2e
+
+1. Create a new column named `start_yr` in the original `basics` which contains only valid year from `startYear`. For any of `start_yr` entries that were not a valid year, we will set the `start_yr` to `NA`.
+
+```{r}
+start_yr_basics <- basics %>%
+  mutate(start_yr = suppressWarnings(as.numeric(startYear)))
+start_yr_basics
+# I have a new idea according to Jan 15 lecture
+start_yr_basics2 <- basics %>% 
+  mutate(start_yr = if_else(startYear == "\\N", NA, startYear))
+start_yr_basics2
+```
+
+
+2. Create a new column named `end_yr` in the original `basics` which contains only valid year from `endYear`. For any of `end_yr` entries that were not a valid year, we will set the `end_yr` to `NA`.
+
+```{r}
+end_yr_basics <- basics %>%
+  mutate(end_yr = suppressWarnings(as.numeric(endYear)))
+end_yr_basics
+# I have a new idea according to Jan 15 lecture
+end_yr_basics2 <- basics %>% 
+  mutate(end_yr = if_else(endYear == "\\N", NA, endYear))
+end_yr_basics2
+```
+
+---
+
+## Question 3: Investigate the Crew Data
+
+Let's investigate rating data frame. We have that `crew` has 3 columns `title identifier`, `directors` and `writers`.
+
+Look at the first 5 rows of `crew` to see what we're working with.
+
+```{r}
+# show the first 5 rows of the file "crew"
+head(crew, 5)
+```
+
+
+### Question 3a
+
+The column `title identifier` corresponds to a unique identifier of the title and `tid` in `basics` data frame. Rename `title identifier` to `tid` in `crew`.
+```{r}
+crew %>%
+  rename(tid = "title identifier") # rename the column to `tid`
+```
+
+Write an expression that evaluates to `TRUE` or `FALSE` based on whether `tid` on `crew` are unique.
+
+```{r}
+is_crew_tid_unique = nrow(crew) == n_distinct(crew$"title identifier")
+is_crew_tid_unique
+```
+
+
+## Question 3b
+
+When we inspect `directors` column, it contains missing values or unique identifier of person. We can see that in the 1th row 1 director and 2 writer and in 2nd row 1 director and 0 writer. 
+
+1. Create a new column named `num_directors` in the original `crew` which contains the number of directors for the title.
+
+```{r}
+num_directors_crew = crew %>%
+  mutate(
+    directors = replace(directors, directors == "\\N", NA),  # change "\\N" to NA first
+    # use case_when function to separate the different conditions
+    num_directors = case_when(
+      is.na(directors) ~ 0,  # if it is NA，it will directly return to 0
+      TRUE ~ 1 + str_count(directors, ",")  # the real number of people is "number commas + 1"
+    )
+  )
+num_directors_crew
+```
+
+
+2. Create a new column named `num_writers` in the original `crew` which contains the number of writers for the title.
+
+```{r}
+num_writers_crew = crew %>%
+  mutate(
+    # change "\\N" to NA first
+    writers = replace(writers, writers == "\\N", NA),
+    # count the number of writers
+    num_writers = case_when(
+      is.na(writers) ~ 0,  # if it is NA，it will directly return to 0
+      TRUE ~ 1 + str_count(writers, ",")  # the real number of writers is "number commas + 1"
+    )
+  )
+num_writers_crew
+```
+
+### Question 3c
+
+What is the largest number of directors for one title? 
+
+```{r}
+largest_num_direc <- num_directors_crew %>%
+  arrange(desc(num_directors))  # descending num_directors
+largest_num_direc <- largest_num_direc$num_directors[1]
+largest_num_direc
+```
+
+Visualize the number of directors and the number of writers.
+
+```{r}
+ggplot(num_directors_crew, aes(x = num_directors)) +
+  geom_histogram(binwidth = 1, fill = "red", color = "black") +
+  labs(title = "Distribution of Directors per Title",
+       x = "Number of Directors",
+       y = "Frequency")
+
+ggplot(num_writers_crew, aes(x = num_writers)) +
+  geom_histogram(binwidth = 1, fill = "green", color = "black") +
+  labs(title = "Distribution of Writers per Title",
+       x = "Number of Writers",
+       y = "Frequency")
+```
+
+---
+
+## Question 4: Some Analysis
+
+### Question 4a
+
+Create new column `title_length` that stores the length of the `primaryTitle` of each of the title in `basics`. 
+
+
+
+```{r}
+basics %>%
+  mutate(title_length = nchar(primaryTitle)) # calculate the length of the "primaryTitle" here
+```
+
+### Question 4b
+
+Create a new `tibble` `basics_valid` which only contain valid `startYear`. (No `NA` records)
+
+```{r}
+basics_valid = basics %>%
+  filter(!is.na(startYear)) # only keep the valid "startYear" here
+basics_valid %>% head()
+```
+
+### Question 4c
+
+We want to work the titles which `tid` are even number. Assign `is_even` a boolean vector that indicates whether the `tid` ends with even or odd number. 
+
+You might find the mod operation `%%` useful here.
+
+```{r}
+is_even <- basics$tid %>%
+  str_remove("tt") %>%  # remove the "tt" at the start of every "tid"
+  as.numeric() %% 2 == 0
+is_even %>% head()
+```
+
+### Question 4d
+
+Using the vector you created above, store the primary title name with the shortest name among all titles in even title identifier in `shortest_title_even`. 
+
+`shortest_title_even` contains a `string` and is sorted alphabetically. Also, numbers should come before letters.
+
+```{r}
+shortest_title_even = basics %>%
+  filter(is_even) %>%  # only remain the even numbers here
+  filter(nchar(primaryTitle) == min(nchar(primaryTitle))) %>%  # find the shortest primary title
+  arrange(primaryTitle) %>%  # arrange/sort the primary titles in alphabetical order
+  slice(1) %>%  # slice the first observation/record
+  .$primaryTitle
+shortest_title_even
+```
+
+### Question 4e
+
+Suppose we only consider titles in `basics_valid` that also have valid end years along with in even title identifier. That is, we no longer include titles that have invalid end years. Does your answer from 4d change?
+
+Write an expression that indicates whether the shortest title is the same (True) or not (False) if we require that the title must have a valid end year. 
+
+```{R}
+shortest_title_even_valid_endYear <- basics_valid %>%
+  filter(!is.na(endYear)) %>%  # filter the valid endYear here
+  filter(is_even) %>%  # only keep even numbers here
+  filter(nchar(primaryTitle) == min(nchar(primaryTitle))) %>%  # get the shortest title
+  arrange(primaryTitle) %>%  # arrange/sort the primary titles in alphabetical order
+  slice(1) %>%  # slice the first observation/record
+  .$primaryTitle
+same_shortest_title = shortest_title_even == shortest_title_even_valid_endYear
+same_shortest_title
+```
+
+---
+## Congratulations! You have finished Homework 1 !!!
+
+### Submission Instruction
+1. Submit the pdf document from this r markdown file onto Gradescope.
+2. Assign pages to corresponding questions when you submit your pdf onto Gradescope.
+
+

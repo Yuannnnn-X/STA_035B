@@ -1,0 +1,866 @@
+---
+title: 'Take Home Exam 2'
+author: "Yuan Xie"
+date: "2025-03-03"
+output:
+  pdf_document:
+    latex_engine: xelatex
+header-includes:
+  - \usepackage{enumitem}
+  - \setlist[enumerate,1]{left=0pt}
+    
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,eval = TRUE) # when you knit for submitting, change eval = FALSE to TRUE, so your codes can be evaluated and present results.
+```
+
+---
+
+# Short Report in a **concise 2-page report**
+
+1. **Introduction**: State the objective and describe the dataset.
+
+The objective of the dataset is to help us analyze the relationship between health scores and various potential personal factors, like Age, BMI, Exercise Hours, Smoking Status, and Income. The dataset is a csv file which includes 6 columns with the variables mentioned just now. Here, we use the dataset containing these variables to explore correlations, calculate prediction intervals and predict health scores with simple and multiple linear regression analysis and bootstrap techniques.
+
+2. **Exploratory Data Analysis**
+
+In Exploratory Data Analysis, the question mainly focus on numerical variables. To begin with, the statistics of 5 relevant numerical variables are summarized, including mean, median, standard deviation, lower quartile, upper quartile, minimum and maximum. The detailed value of these statistics data will show below. At the same time, these variables are required to be visualized in this part. According to the Histogram of Numerical Variables, it looks that BMI, Health_Score and Income are spread in the normal distribution. The Boxplot of Numerical Variables shows that BMI and Imcome have outliers while Age and Exercise_Hours look more dispersed. The Visualizations of the Response Variable against Numerical Predictor Variables indicates that Health_Scores has positive relationships with Exercise_Hours and Income while negative relationships with Age and BMI. The boxplot below about Smoking_Status reveals that the median and lower and upper quartiles of Health_Scores of smokers are lower than that of non-smokers. As for the initial observations, based on the data manipulating process, BMI and Income variables both have 2 outliers. Age_Skewness, BMI_Skewness, and Exercise_Hours_Skewness show left skewness while the other two numerical variables show right skewness. However, the magnitude of their skewness are all small. None of the columns have missing values.
+
+3. **Simple Linear Regression**
+
+In Simple Linear Regression, according to the 4 correlation coefficients, the correlation coefficient between Income and Health_Score has the largest magnitude of 0.6687468. This means Income is the most reasonable predictor. Then, I can make the linear regression model with lm(). The estimated regression equation is Health_Score = 59.5210944765007 + 0.000477127394928402 * Income. When the Income is 0, the estimated Health_Score is about 59.521. For each additional 1 unit increase in Income, Health_Score increases by about 0.000477. For simple linear regression models, r_squared = r ^ 2. Here, the R-squared value is about 0.4472222. In the last part of Simple Linear Regression, 2 graphs are plotted. The first graph is the residual plot. The points all look evenly separated without any patterns. Based on the second graph, the residuals spread in normal distribution because the bars holistically form a bell shape, which is the same as normal distribution.
+
+4. **Bootstrapping for Interference**
+
+In Bootstrapping for Interference, the distribution of the bootstrapped slopes is shown below. It roughly forms a bell shape which makes it look like normal distribution. We are about 95% confident that the Health_Score tends to increase by between 0.0004143684 and 0.0005404859 units every one unit increase in Income on average. At the same time, the predicted Health_Score here for the question is 71.44928 based on the linear regression model. According to the bootstrapping process, the 95% prediction interval for the response variable is (69.49780, 73.35643). The predict value is in the 95% prediction interval, which is acceptable.
+
+5. **Multiple Linear Regression**
+
+In Multiple Linear Regression, the equation of the multiple linear regression model comes from plugging out the coefficients. Based on the model, the equation is Health_Score = 80.0935965698827 + -0.306567220507554 * Age + -0.556570644809524 * BMI + 1.47363461678577 * Exercise_Hours + 0.00046109957830263 * Income. The estimated intercept is 80.0935965699. When all the four variables are 0, the estimated Health_Score is about 80.094. The estimated slope coefficient is -0.306567220507554 (Age), -0.556570644809524 (BMI), 1.47363461678577 (Exercise_Hours), and 0.00046109957830263 (Income). For each additional year of Age, Health_Score decreases by about 0.307 points. For each 1-unit increase in BMI, Health_Score decreases by about 0.557 points. For each additional hour of exercise, Health_Score increases by about 1.474 points. For each additional 1 unit increase in income, Health_Score increases by about 0.000461. According to the comparison between simple and multiple linear regression analysis, the adjusted R-squared of the simple linear regression is 0.4453673 while that of the multiple linear regression is 0.7619176. The multiple linear regression model has a much larger adjusted R-squared. This mean the multiple linear regression model is more accurate. Last but not least, the multiple linear regression predicted Health_Score is 77.24903 and its prediction interval is (75.06579, 79.32674). The simple linear regression model has a predicted Health_Score of 71.44928 and a prediction interval of (69.49780, 73.35643). Compared with the simple linear regression model, the multiple linear regression model has a larger predicted Health_Score and a larger prediction interval in values.
+
+6. **Conclusions**: Summarize major results from EDA, regression analysis, and bootstrapping. Interpret results in the context of the data, mention limitations, and suggest next steps.
+
+In conclusion, the 5 variables all seem to be factors of Health_Scores. Typically, Health_Scores has positive relationships with Exercise_Hours and Income while negative relationships with Smoking_Status, Age and BMI. Among those factors, Income has the highest level of correlation. With the help of bootstrapping technique, the prediction value of the data specified in the question is acceptable for simple linear regression case. The multiple linear regression model looks more reliable and accurate because it has a higher adjust R-squared than the simple linear regression model. The equations have already been shown in the previous explanation parts. There are some assumptions and limitations of the regression analysis. The relationship between predictors and Health_Score should be linear. Residuals should not be correlated. Residuals should have equal variance. "Residuals should follow a normal distribution. Predictors should not be highly correlated. If the residual plot shows a pattern, we need to check some other better regression models. If residuals are not normal, we need to remove outliers or using a robust regression model.
+
+7. **Appendix**: Include any plots or tables with clear labels (not included in page limit).
+
+```{r include = FALSE}
+library(tidyverse)
+library(broom)
+
+# import the datasets
+health <- read_csv("health_dataset.csv")
+```
+
+```{r echo = FALSE}
+health %>%
+  # need to find the columns with numerical data first
+  select(where(is.numeric)) %>%
+  # use summarise() function to show these statistical properties
+  summarise(
+    # apply multiple columns inside the summarise() with across()
+    across(
+      # select all columns with everything()
+      everything(),
+      # apply multiple function inside across() using list()
+      list(
+        # ~ means anonymous function, applying to multiple functions
+        Mean = ~mean(.x, na.rm = TRUE), # mean
+        Median = ~median(.x, na.rm = TRUE), # median
+        SD = ~sd(.x, na.rm = TRUE), # standard deviation
+        Min = ~min(.x, na.rm = TRUE), # minimum
+        Q1 = ~quantile(.x, 0.25, na.rm = TRUE), # lower quantile
+        Q3 = ~quantile(.x, 0.75, na.rm = TRUE), # upper quantile
+        Max = ~max(.x, na.rm = TRUE) # maximum
+      )
+    )
+  )
+
+
+# make a histogram of numerical variables
+health %>%
+  # use pivot_longer() to make the tibble into a longer form
+  pivot_longer(cols = where(is.numeric), names_to = "Variable", values_to = "Value") %>%
+  # the x-axes are the values of these variables
+  # the y-axes are the frequencies of these values
+  ggplot(aes(x = Value)) +
+  # set the number of bars, color and degree of transparency
+  geom_histogram(bins = 30, fill = "green", alpha = 0.7) +
+  # separate into several sub-histograms
+  facet_wrap(~ Variable, scales = "free") +
+  # set the title
+  labs(title = "Histogram of Numerical Variables")
+
+# make a boxplot of numerical variables to show the variation
+health %>%
+  # use pivot_longer() to make the tibble into a longer form
+  pivot_longer(cols = where(is.numeric), names_to = "Variable", values_to = "Value") %>%
+  # the x-axes are the names of these variables
+  # the y-axes are the values of these variables
+  ggplot(aes(x = Variable, y = Value)) +
+  # draw the boxplot and the set the degree of transparency
+  geom_boxplot(fill = "orange", alpha = 0.7) +
+  # separate into several sub-boxplots
+  facet_wrap(~ Variable, scales = "free") +
+  # set the title
+  labs(title = "Boxplot of Numerical Variables")
+
+# set the predictors
+predictors <- c("Age", "BMI", "Exercise_Hours", "Income") 
+# set the response
+response <- "Health_Score"
+
+# make a scatter plot of numerical variables to show the correlation and trend
+health %>%
+  # use pivot_longer() to make the tibble into a longer form
+  pivot_longer(cols = all_of(predictors), names_to = "Predictor", values_to = "Value") %>%
+  # set the x-axes as different predictors and y-axes as Health_Score
+  ggplot(aes(x = Value, y = Health_Score)) +
+  # set the degree of transparency
+  geom_point(alpha = 0.75) + 
+  # draw the best fit line
+  geom_smooth(method = "lm", formula = y ~ x, color = "red") +
+  # separate into several sub-scatter plots
+  facet_wrap(~ Predictor, scales = "free_x") + 
+  # set the title
+  labs(title = "Visualizations of the Response Variable against Numerical Predictor Variables")
+
+# make a boxplot of categorical variables to show the correlation and trend
+health %>%
+  # group data by smoker vs. non-smoker
+  group_by(Smoking_Status) %>% 
+  # set the x-axes as Smoking_Status and y-axes as Health_Score
+  ggplot(aes(x = Smoking_Status, y = Health_Score, fill = Smoking_Status)) +
+  # Box plot to show quartiles, median, and outliers
+  geom_boxplot(alpha = 0.7) +
+  # set the title, x-axis and y-axis
+  labs(title = "Distribution of Health Score by Smoking Status",
+       x = "Smoking Status",
+       y = "Health Score")
+
+
+# check outliers
+# define a function to return the number of outliers
+detect_outliers <- function(x) {
+  # find the lower quartile
+  Q1 <- quantile(x, 0.25, na.rm = TRUE)
+  # find the upper quartile
+  Q3 <- quantile(x, 0.75, na.rm = TRUE)
+  # calculate the interquartile range
+  IQR_value <- Q3 - Q1
+  # count the number of outliers
+  num_outliers <- sum(x < (Q1 - 1.5 * IQR_value) | x > (Q3 + 1.5 * IQR_value), na.rm = TRUE)
+  # return the number_outliers
+  return(num_outliers)
+}
+# apply the detect_outliers to every column
+health %>%
+  # select the columns which are numerical
+  select(where(is.numeric)) %>%
+  # summarise the number of ouliers for every numerical column
+  summarise(across(everything(), detect_outliers))
+
+# check the skewness
+# define a function to return the skewness
+# the formula of skewness is {n/[(n-1)(n-2)]}sigma[(xi-x_bar)^2/sd^3]
+skewness <- function(x) {
+  # count the total number of observations
+  n <- sum(!is.na(x)) 
+  # calculate the mean
+  mean_x <- mean(x, na.rm = TRUE)
+  # calculate the variance
+  var_x <- var(x, na.rm = TRUE)
+  # calculate the adjusted factor
+  adj_factor <- n / ((n - 1) * (n - 2)) 
+  # plug the 3 defined variables into the formula of skewness
+  skew <- adj_factor * sum((x - mean_x)^3, na.rm = TRUE) / (var_x^(3/2))
+  # return the value of skewness
+  return(skew)
+}
+health %>%
+  # select the columns which are numerical
+  select(where(is.numeric)) %>%
+  # use summarise() function to show these statistical properties
+  # apply multiple columns inside the summarise() with across()
+  # select all columns with everything()
+  summarise(across(everything(), list(
+    Mean = ~mean(.x, na.rm = TRUE),
+    Median = ~median(.x, na.rm = TRUE),
+    SD = ~sd(.x, na.rm = TRUE),
+    Min = ~min(.x, na.rm = TRUE),
+    Q1 = ~quantile(.x, 0.25, na.rm = TRUE),
+    Q3 = ~quantile(.x, 0.75, na.rm = TRUE),
+    Max = ~max(.x, na.rm = TRUE),
+    # calculate the skewness for all the numerical columns
+    Skewness = ~skewness(.x)  
+  ))) %>%
+  # select the skewness columns
+  select(contains("Skewness"))
+
+# check the missing values
+health %>%
+  # count the number of missing values of every column in the similar way as I described before
+  summarise(across(everything(), ~sum(is.na(.)), .names = "Missing_{.col}"))
+
+
+# find most reasonable predictor by comparing their correlation coefficients
+r_age <- cor(health$Health_Score, health$Age) # Age vs. Health_Score
+r_bmi <- cor(health$Health_Score, health$BMI) # BMI vs. Health_Score
+r_exercise <- cor(health$Health_Score, health$Exercise_Hours) # Exercise_Hours vs. Health_Score
+r_income <- cor(health$Health_Score, health$Income) # Income vs. Health_Score
+# create a vector of the 4 correlation coefficients
+cor_vec = c(r_age, r_bmi, r_exercise, r_income)
+# Income vs. Health_Score has the largest maginitude of correlation coefficient
+# create the linear regression model
+lm_model <- lm(Health_Score ~ Income, data = health)
+# get the value of intercept
+intercept <- coef(lm_model)[1]  
+# get the value of slope
+slope <- coef(lm_model)[2]
+# show the linear equation
+equation <- paste("Health_Score =", intercept, "+", slope, "* Income")
+# make a tibble with Predictor(Income) and Residuals
+residuals_df <- tibble(
+  # the first column is Income
+  Predictor = health$Income,  
+  # the second column is Residuals
+  Residuals = residuals(lm_model))
+# draw the residual plot
+residuals_df %>% 
+  # set the x-axis and y-axis aesthetic
+  ggplot(aes(x = Predictor, y = Residuals)) +
+  # set the degree of transparency
+  geom_point(alpha = 0.75) +
+  # draw the horizontal line
+  geom_abline(intercept = 0, slope = 0, color = "red", linewidth = 1) + 
+  # set the title, x-axis and y-axis
+  labs(title = "Residual Plot", 
+       x = "Predictor Values (Income)", 
+       y = "Residuals")
+
+# Draw the histogram to check the normality
+residuals_df %>%
+  # set the x-axis as Residuals
+  ggplot(aes(x = Residuals)) +
+  # draw the histogram and the y-axis is the probability density
+  geom_histogram(aes(y = after_stat(density)), bins = 30, fill = "blue", alpha = 0.75) +
+  # set the title, x-axis and y-axis
+  labs(title = "Histogram of Residuals", 
+       x = "Residuals", 
+       y = "Density")
+
+
+# set a random seed, so the result can be repeatedly shown
+set.seed(123)
+# 5000 bootstrap resamples means replicating 5000 times
+boots_slopes <- replicate(5000, {
+  # bootstrap resamples means we need to put the sample back, replace = TRUE
+  sample_data <- health %>% sample_frac(size = 1, replace = TRUE) 
+  # model the linear regression
+  model <- lm(Health_Score ~ Income, data = sample_data) 
+  # get the value of slope, which is the second one
+  coef(model)[2]
+})
+# make a tibble of the 5000 slopes
+boots_slopes_df <- tibble(slope = boots_slopes)
+# based on the tibble of bootstrapped slopes, plot a histogram
+boots_slopes_df %>%
+  ggplot(aes(x = slope)) +
+  # separate into 30 groups
+  geom_histogram(bins = 30, fill = "red", color = "black", alpha = 0.75) +
+  # name the title, x-axis and y-axis here
+  labs(title = "Distribution of Bootstrapped Slopes",
+       x = "Slope of Income vs. Health_Score",
+       y = "Frequency")
+
+
+# construct the simple linear model 
+simple_lm <- lm(Health_Score ~ Income, data = health)
+# construct the multiple linear model
+multi_lm <- lm(Health_Score ~ Age + BMI + Exercise_Hours + Income, data = health)
+# get the adjusted R-squared with glance() for both the two cases
+adj_r_squared_simple_lm <- simple_lm %>% glance() %>% pull(adj.r.squared)
+adj_r_squared_multi_lm <- multi_lm %>% glance() %>% pull(adj.r.squared)
+# make a tibble to show the adjusted R-squared values
+model_comparison <- tibble(
+  Model = c("Simple Linear Regression", "Multiple Linear Regression"),
+  Adjusted_R2 = c(adj_r_squared_simple_lm, adj_r_squared_multi_lm)
+)
+# show the tibble
+model_comparison
+
+
+# define the new observation according to the question
+new_data4 <- tibble(Age = 22, BMI = 19, Exercise_Hours = 2, Income = 25000)
+
+# Bootstrapping 95% Prediction Interval for Simple Regression
+# set a random seed, so the result can be repeatedly shown
+set.seed(123)
+# 5000 bootstrap resamples means replicating 5000 times
+boots_predictions_simple <- replicate(5000, {
+  # bootstrap resamples means we need to put the sample back, replace = TRUE
+  sample_data <- health %>% sample_frac(size = 1, replace = TRUE)
+  # model the linear regression
+  model <- lm(Health_Score ~ Income, data = sample_data)
+  # return a vector of length 1
+  predict(model, newdata = new_data4)[1]
+})
+
+# Bootstrapping 95% Prediction Interval for Multiple Regression
+# set a random seed, so the result can be repeatedly shown
+set.seed(123)
+# 5000 bootstrap resamples means replicating 5000 times
+boots_predictions_multi <- replicate(5000, {
+  # bootstrap resamples means we need to put the sample back, replace = TRUE
+  sample_data <- health %>% sample_frac(size = 1, replace = TRUE)
+  # model the linear regression
+  model <- lm(Health_Score ~ Age + BMI + Exercise_Hours + Income, data = sample_data)
+  # return a vector of length 1
+  predict(model, newdata = new_data4)[1]
+})
+
+# Predict Health_Score with the simple regression model
+prediction_simple4 <- predict(simple_lm, newdata = new_data4)
+# Predict Health_Score with the multiple regression model
+prediction_multi4 <- predict(multi_lm, newdata = new_data4)
+
+# calculate the prediction interval of the simple regression model
+prediction_interval_simple <- quantile(boots_predictions_simple, c(0.025, 0.975))
+# calculate the prediction interval of the multiple regression model
+prediction_interval_multi <- quantile(boots_predictions_multi, c(0.025, 0.975))
+
+# Compare predictions in a tibble
+prediction_comparison <- tibble(
+  Model = c("Simple Regression", "Multiple Regression"),
+  Predicted_Health_Score = c(prediction_simple4, prediction_multi4),
+  `95% PI (Lower Bound)` = c(prediction_interval_simple[1], prediction_interval_multi[1]),
+  `95% PI (Upper Bound)` = c(prediction_interval_simple[2], prediction_interval_multi[2])
+)
+
+# Show the tibble
+prediction_comparison
+```
+
+
+8. **R Appendix**: Include any R codes you used for the report. Do not show your code in the body of the report (1-6). (not included in page limit).
+
+```{r}
+##### IMPORT THE DATASET
+library(tidyverse)
+# import the datasets
+health <- read_csv("health_dataset.csv")
+# briefly know the structures of the three csv files with head()
+health %>% head()
+
+
+
+
+
+
+##### HERE IS QUESTION 1 OF PART 1
+health %>%
+  # need to find the columns with numerical data first
+  select(where(is.numeric)) %>%
+  # use summarise() function to show these statistical properties
+  summarise(
+    # apply multiple columns inside the summarise() with across()
+    across(
+      # select all columns with everything()
+      everything(),
+      # apply multiple function inside across() using list()
+      list(
+        # ~ means anonymous function, applying to multiple functions
+        Mean = ~mean(.x, na.rm = TRUE), # mean
+        Median = ~median(.x, na.rm = TRUE), # median
+        SD = ~sd(.x, na.rm = TRUE), # standard deviation
+        Min = ~min(.x, na.rm = TRUE), # minimum
+        Q1 = ~quantile(.x, 0.25, na.rm = TRUE), # lower quantile
+        Q3 = ~quantile(.x, 0.75, na.rm = TRUE), # upper quantile
+        Max = ~max(.x, na.rm = TRUE) # maximum
+      )
+    )
+  )
+### **interpretation:** The tibble here shows the summary statistics of relevant numerical 
+### variables, including mean, median, standard deviation, minimum, lower and upper quartle,
+### and maximum.
+
+
+
+
+
+
+##### HERE IS QUESTION 2 OF PART 1
+# make a histogram of numerical variables
+health %>%
+  # use pivot_longer() to make the tibble into a longer form
+  pivot_longer(cols = where(is.numeric), names_to = "Variable", values_to = "Value") %>%
+  # the x-axes are the values of these variables
+  # the y-axes are the frequencies of these values
+  ggplot(aes(x = Value)) +
+  # set the number of bars, color and degree of transparency
+  geom_histogram(bins = 30, fill = "green", alpha = 0.7) +
+  # separate into several sub-histograms
+  facet_wrap(~ Variable, scales = "free") +
+  # set the title
+  labs(title = "Histogram of Numerical Variables")
+
+# make a boxplot of numerical variables to show the variation
+health %>%
+  # use pivot_longer() to make the tibble into a longer form
+  pivot_longer(cols = where(is.numeric), names_to = "Variable", values_to = "Value") %>%
+  # the x-axes are the names of these variables
+  # the y-axes are the values of these variables
+  ggplot(aes(x = Variable, y = Value)) +
+  # draw the boxplot and the set the degree of transparency
+  geom_boxplot(fill = "orange", alpha = 0.7) +
+  # separate into several sub-boxplots
+  facet_wrap(~ Variable, scales = "free") +
+  # set the title
+  labs(title = "Boxplot of Numerical Variables")
+
+# set the predictors
+predictors <- c("Age", "BMI", "Exercise_Hours", "Income") 
+# set the response
+response <- "Health_Score"
+
+# make a scatter plot of numerical variables to show the correlation and trend
+health %>%
+  # use pivot_longer() to make the tibble into a longer form
+  pivot_longer(cols = all_of(predictors), names_to = "Predictor", values_to = "Value") %>%
+  # set the x-axes as different predictors and y-axes as Health_Score
+  ggplot(aes(x = Value, y = Health_Score)) +
+  # set the degree of transparency
+  geom_point(alpha = 0.75) + 
+  # draw the best fit line
+  geom_smooth(method = "lm", formula = y ~ x, color = "red") +
+  # separate into several sub-scatter plots
+  facet_wrap(~ Predictor, scales = "free_x") + 
+  # set the title
+  labs(title = "Visualizations of the Response Variable against Numerical Predictor Variables")
+
+# make a boxplot of categorical variables to show the correlation and trend
+health %>%
+  # group data by smoker vs. non-smoker
+  group_by(Smoking_Status) %>% 
+  # set the x-axes as Smoking_Status and y-axes as Health_Score
+  ggplot(aes(x = Smoking_Status, y = Health_Score, fill = Smoking_Status)) +
+  # Box plot to show quartiles, median, and outliers
+  geom_boxplot(alpha = 0.7) +
+  # set the title, x-axis and y-axis
+  labs(title = "Distribution of Health Score by Smoking Status",
+       x = "Smoking Status",
+       y = "Health Score")
+### **Interpretation:** The first graph is histograms of numerical variables which shows 
+### the central tendency. The second graph is boxplots of numerical variables which shows 
+### spread variation. The third graph is the scatter plots of numerical variables vs. 
+### Health_Score which shows the correlation and relationship. The fourth graph shows the 
+### relationship between non-numerical variables (smoking status) and Health_Score.
+
+
+
+
+
+
+##### HERE IS QUESTION 3 OF PART 1
+# check outliers
+# define a function to return the number of outliers
+detect_outliers <- function(x) {
+  # find the lower quartile
+  Q1 <- quantile(x, 0.25, na.rm = TRUE)
+  # find the upper quartile
+  Q3 <- quantile(x, 0.75, na.rm = TRUE)
+  # calculate the interquartile range
+  IQR_value <- Q3 - Q1
+  # count the number of outliers
+  num_outliers <- sum(x < (Q1 - 1.5 * IQR_value) | x > (Q3 + 1.5 * IQR_value), na.rm = TRUE)
+  # return the number_outliers
+  return(num_outliers)
+}
+# apply the detect_outliers to every column
+health %>%
+  # select the columns which are numerical
+  select(where(is.numeric)) %>%
+  # summarise the number of ouliers for every numerical column
+  summarise(across(everything(), detect_outliers))
+
+# check the skewness
+# define a function to return the skewness
+# the formula of skewness is {n/[(n-1)(n-2)]}sigma[(xi-x_bar)^2/sd^3]
+skewness <- function(x) {
+  # count the total number of observations
+  n <- sum(!is.na(x)) 
+  # calculate the mean
+  mean_x <- mean(x, na.rm = TRUE)
+  # calculate the variance
+  var_x <- var(x, na.rm = TRUE)
+  # calculate the adjusted factor
+  adj_factor <- n / ((n - 1) * (n - 2)) 
+  # plug the 3 defined variables into the formula of skewness
+  skew <- adj_factor * sum((x - mean_x)^3, na.rm = TRUE) / (var_x^(3/2))
+  # return the value of skewness
+  return(skew)
+}
+health %>%
+  # select the columns which are numerical
+  select(where(is.numeric)) %>%
+  # use summarise() function to show these statistical properties
+  # apply multiple columns inside the summarise() with across()
+  # select all columns with everything()
+  summarise(across(everything(), list(
+    Mean = ~mean(.x, na.rm = TRUE),
+    Median = ~median(.x, na.rm = TRUE),
+    SD = ~sd(.x, na.rm = TRUE),
+    Min = ~min(.x, na.rm = TRUE),
+    Q1 = ~quantile(.x, 0.25, na.rm = TRUE),
+    Q3 = ~quantile(.x, 0.75, na.rm = TRUE),
+    Max = ~max(.x, na.rm = TRUE),
+    # calculate the skewness for all the numerical columns
+    Skewness = ~skewness(.x)  
+  ))) %>%
+  # select the skewness columns
+  select(contains("Skewness"))
+
+# check the missing values
+health %>%
+  # count the number of missing values of every column in the similar way as I described before
+  summarise(across(everything(), ~sum(is.na(.)), .names = "Missing_{.col}"))
+### **Interpretation:** Based on the data manipulating process, BMI and Income variables 
+### both have 2 outliers. Age_Skewness, BMI_Skewness, and Exercise_Hours_Skewness show 
+### left skewness while the other two numerical variables show right skewness. However, 
+### the maginitude of their skewness are all small. None of the columns have missing values.
+
+
+
+
+
+
+##### HERE IS QUESTION 1 OF PART 2
+# find most reasonable predictor by comparing their correlation coefficients
+r_age <- cor(health$Health_Score, health$Age) # Age vs. Health_Score
+r_bmi <- cor(health$Health_Score, health$BMI) # BMI vs. Health_Score
+r_exercise <- cor(health$Health_Score, health$Exercise_Hours) # Exercise_Hours vs. Health_Score
+r_income <- cor(health$Health_Score, health$Income) # Income vs. Health_Score
+# create a vector of the 4 correlation coefficients
+cor_vec = c(r_age, r_bmi, r_exercise, r_income)
+cor_vec
+# Income vs. Health_Score has the largest maginitude of correlation coefficient
+# create the linear regression model
+lm_model <- lm(Health_Score ~ Income, data = health)
+# get the value of intercept
+intercept <- coef(lm_model)[1]  
+# get the value of slope
+slope <- coef(lm_model)[2]
+# show the linear equation
+equation <- paste("Health_Score =", intercept, "+", slope, "* Income")
+equation
+### **Interpretation:** According to the 4 correlation coefficients, the correlation 
+### coefficient between Income and Health_Score has the largest magnitude. This means 
+### Income is the most reasonable predictor. Then, I can make the linear regression model 
+### with lm().
+
+
+
+
+
+##### HERE IS QUESTION 2 OF PART 2
+### **Interpretation:** The estimated slope ($\beta_1$) is the second coefficient of the 
+### linear regression model, which is 0.000477127394928402. The estimated intercept is 
+### the first coefficient of the linear regression model, which is 59.5210944765007. When 
+### the Income is 0, the estimated Health_Score is about 59.521. For each additional 1 unit 
+### increase in income, Health_Score increases by about 0.000477.
+
+
+
+
+
+##### HERE IS QUESTION 3 OF PART 2
+# for simple linear regression: r_squared = r ^ 2
+r_squared2 <- r_income ^ 2
+r_squared2
+### **Interpretation:** For simple linear regression models, r_squared = r ^ 2. Here, the 
+### R-squared value is 0.4472222.
+
+
+
+
+
+
+##### HERE IS QUESTION 4 OF PART 2
+# make a tibble with Predictor(Income) and Residuals
+residuals_df <- tibble(
+  # the first column is Income
+  Predictor = health$Income,  
+  # the second column is Residuals
+  Residuals = residuals(lm_model))
+# draw the residual plot
+residuals_df %>% 
+  # set the x-axis and y-axis aesthetic
+  ggplot(aes(x = Predictor, y = Residuals)) +
+  # set the degree of transparency
+  geom_point(alpha = 0.75) +
+  # draw the horizontal line
+  geom_abline(intercept = 0, slope = 0, color = "red", linewidth = 1) + 
+  # set the title, x-axis and y-axis
+  labs(title = "Residual Plot", 
+       x = "Predictor Values (Income)", 
+       y = "Residuals")
+
+# Draw the histogram to check the normality
+residuals_df %>%
+  # set the x-axis as Residuals
+  ggplot(aes(x = Residuals)) +
+  # draw the histogram and the y-axis is the probability density
+  geom_histogram(aes(y = after_stat(density)), bins = 30, fill = "blue", alpha = 0.75) +
+  # set the title, x-axis and y-axis
+  labs(title = "Histogram of Residuals", 
+       x = "Residuals", 
+       y = "Density")
+### **Interpretation and Reporting:** The first graph is the residual plot. The points all 
+### look evenly separated without any patterns. Based on the second graph, the residuals 
+### spread in normal distribution because the bars holistically form a bell shape, which is 
+### the same as normal distribution.
+
+
+
+
+
+
+##### HERE IS QUESTION 1.1 OF PART 3
+# set a random seed, so the result can be repeatedly shown
+set.seed(123)
+# 5000 bootstrap resamples means replicating 5000 times
+boots_slopes <- replicate(5000, {
+  # bootstrap resamples means we need to put the sample back, replace = TRUE
+  sample_data <- health %>% sample_frac(size = 1, replace = TRUE) 
+  # model the linear regression
+  model <- lm(Health_Score ~ Income, data = sample_data) 
+  # get the value of slope, which is the second one
+  coef(model)[2]
+})
+# make a tibble of the 5000 slopes
+boots_slopes_df <- tibble(slope = boots_slopes)
+# based on the tibble of bootstrapped slopes, plot a histogram
+boots_slopes_df %>%
+  ggplot(aes(x = slope)) +
+  # separate into 30 groups
+  geom_histogram(bins = 30, fill = "red", color = "black", alpha = 0.75) +
+  # name the title, x-axis and y-axis here
+  labs(title = "Distribution of Bootstrapped Slopes",
+       x = "Slope of Income vs. Health_Score",
+       y = "Frequency")
+### **Interpretation:** The distribution of the bootstrapped slopes is shown here. It roughly 
+### forms a bell shape which makes it look like normal distribution.
+
+
+
+
+
+
+##### HERE IS QUESTION 1.2 OF PART 3
+# 95% CI means between 2.5% percentile and 97.5% percentile
+confidence_interval3 <- quantile(boots_slopes, c(0.025, 0.975))
+confidence_interval3
+### **Interpretation:** The 95% bootstrap confidence interval is (0.0004143684, 0.0005404859) 
+### according to the code result.
+
+
+
+
+
+
+##### HERE IS QUESTION 1.3 OF PART 3
+### **Interpretation:** We are about 95% confident that the Health_Score tends to increase 
+### by between 0.0004143684 and 0.0005404859 units every one unit increase in Income on average.
+
+
+
+
+
+
+##### HERE IS QUESTION 2.1 OF PART 3
+# make the new data point as a tibble
+new_data <- tibble(Age = 22, BMI = 19, Exercise_Hours = 2, Income = 25000)
+# predict the Health_Score
+predicted_health_score <- predict(lm_model, newdata = new_data)
+# show the predicted Health_Score
+predicted_health_score
+### **Interpretation:** The predicted Health_Score here is 71.44928 based on the linear 
+### regression model.
+
+
+
+
+
+##### HERE IS QUESTION 2.2 OF PART 3
+# set a random seed, so the result can be repeatedly shown
+set.seed(123)  
+# 5000 bootstrap resamples means replicating 5000 times
+boots_predictions <- replicate(5000, {
+  # bootstrap resamples means we need to put the sample back, replace = TRUE
+  sample_data <- health %>% sample_frac(size = 1, replace = TRUE) 
+  # model the linear regression
+  model <- lm(Health_Score ~ Income, data = sample_data) 
+  # return a vector of length 1
+  predict(model, newdata = new_data)[1] 
+})
+# 95% CI means between 2.5% percentile and 97.5% percentile
+prediction_interval3 <- quantile(boots_predictions, c(0.025, 0.975))
+prediction_interval3
+
+
+
+
+
+
+##### HERE IS QUESTION 2.3 OF PART 3
+### **Interpretation:** According to the bootstrapping process, the 95% prediction interval 
+### for the response variable is (69.49780, 73.35643). The predict value is in the 95% 
+### prediction interval, which is acceptable.
+
+
+
+
+
+
+##### HERE IS QUESTION 1 OF PART 4
+# set the 4 numerical predictors
+predictors4 <- c("Age", "BMI", "Exercise_Hours", "Income")
+# construct the multiple linear regression model
+multi_lm_model <- lm(Health_Score ~ Age + BMI + Exercise_Hours + Income, data = health)
+# get the coefficients of the multiple linear regression model
+coefficients <- coef(multi_lm_model)
+coefficients
+# get the value of the intercept, constant term
+intercept <- coefficients[1]
+intercept
+# get the values of the slopes
+slopes <- coefficients[-1]
+# get the names of the corresponding variables of the slopes
+predictor_names <- names(slopes)
+multi_equation <- paste("Health_Score =", intercept, "+", paste(slopes, "*", predictor_names, collapse = " + "))
+multi_equation
+### **Interpretation:** The equation of the multiple linear regression model comes from 
+### plugging out the coefficients. Based on the model, the equation is Health_Score = 
+### 80.0935965698827 + -0.306567220507554 * Age + -0.556570644809524 * BMI + 1.47363461678577 
+### * Exercise_Hours + 0.00046109957830263 * Income.
+
+
+
+
+
+
+##### HERE IS QUESTION 2 OF PART 4
+### **Interpretation:** The estimated intercept is 80.0935965699. When all the four 
+### variables are 0, the estimated Health_Score is about 80.094. The estimated slope 
+### coefficient is -0.306567220507554 (Age), -0.556570644809524 (BMI), 1.47363461678577 
+### (Exercise_Hours), and 0.00046109957830263 (Income). For each additional year of Age, 
+### Health_Score decreases by about 0.307 points. For each 1-unit increase in BMI, Health_Score 
+### decreases by about 0.557 points. For each additional hour of exercise, Health_Score 
+### increases by about 1.474 points. For each additional 1 unit increase in income, 
+### Health_Score increases by about 0.000461.
+
+
+
+
+
+
+##### HERE IS QUESTION 3 OF PART 4
+# construct the simple linear model 
+simple_lm <- lm(Health_Score ~ Income, data = health)
+# construct the multiple linear model
+multi_lm <- lm(Health_Score ~ Age + BMI + Exercise_Hours + Income, data = health)
+# get the adjusted R-squared with glance() for both the two cases
+adj_r_squared_simple_lm <- simple_lm %>% glance() %>% pull(adj.r.squared)
+adj_r_squared_multi_lm <- multi_lm %>% glance() %>% pull(adj.r.squared)
+# make a tibble to show the adjusted R-squared values
+model_comparison <- tibble(
+  Model = c("Simple Linear Regression", "Multiple Linear Regression"),
+  Adjusted_R2 = c(adj_r_squared_simple_lm, adj_r_squared_multi_lm)
+)
+# show the tibble
+model_comparison
+### **Interpretation:** According to the comparison, the adjusted R-squared of the simple 
+### linear regression is 0.4453673 while that of the multiple linear regression is 0.7619176. 
+### The multiple linear regression model has a much larger adjusted R-squared.
+
+
+
+
+
+
+##### HERE IS QUESTION 4 OF PART 4
+# define the new observation according to the question
+new_data4 <- tibble(Age = 22, BMI = 19, Exercise_Hours = 2, Income = 25000)
+
+# Bootstrapping 95% Prediction Interval for Simple Regression
+# set a random seed, so the result can be repeatedly shown
+set.seed(123)
+# 5000 bootstrap resamples means replicating 5000 times
+boots_predictions_simple <- replicate(5000, {
+  # bootstrap resamples means we need to put the sample back, replace = TRUE
+  sample_data <- health %>% sample_frac(size = 1, replace = TRUE)
+  # model the linear regression
+  model <- lm(Health_Score ~ Income, data = sample_data)
+  # return a vector of length 1
+  predict(model, newdata = new_data4)[1]
+})
+
+# Bootstrapping 95% Prediction Interval for Multiple Regression
+# set a random seed, so the result can be repeatedly shown
+set.seed(123)
+# 5000 bootstrap resamples means replicating 5000 times
+boots_predictions_multi <- replicate(5000, {
+  # bootstrap resamples means we need to put the sample back, replace = TRUE
+  sample_data <- health %>% sample_frac(size = 1, replace = TRUE)
+  # model the linear regression
+  model <- lm(Health_Score ~ Age + BMI + Exercise_Hours + Income, data = sample_data)
+  # return a vector of length 1
+  predict(model, newdata = new_data4)[1]
+})
+
+# Predict Health_Score with the simple regression model
+prediction_simple4 <- predict(simple_lm, newdata = new_data4)
+# Predict Health_Score with the multiple regression model
+prediction_multi4 <- predict(multi_lm, newdata = new_data4)
+
+# calculate the prediction interval of the simple regression model
+prediction_interval_simple <- quantile(boots_predictions_simple, c(0.025, 0.975))
+# calculate the prediction interval of the multiple regression model
+prediction_interval_multi <- quantile(boots_predictions_multi, c(0.025, 0.975))
+
+# Compare predictions in a tibble
+prediction_comparison <- tibble(
+  Model = c("Simple Regression", "Multiple Regression"),
+  Predicted_Health_Score = c(prediction_simple4, prediction_multi4),
+  `95% PI (Lower Bound)` = c(prediction_interval_simple[1], prediction_interval_multi[1]),
+  `95% PI (Upper Bound)` = c(prediction_interval_simple[2], prediction_interval_multi[2])
+)
+
+# Show the tibble
+prediction_comparison
+### **Interpretation:** According to the data analysis, the multiple linear regression 
+### predicted Health_Score is 77.24903 and its prediction interval is (75.06579, 79.32674). 
+### The simple linear regression model has a predicted Health_Score of 71.44928 and a 
+### prediction interval of (69.49780, 73.35643). Compared with the simple linear regression
+### model, the multiple linear regression model has a larger predicted Health_Score and a 
+### larger prediction interval in values.
+
+
+
+
+
+
+##### HERE IS QUESTION 5 OF PART 4
+print("Model assumptions:")
+print("The relationship between predictors and Health_Score should be linear.")
+print("Residuals should not be correlated.")
+print("Residuals should have equal variance.")
+print("Residuals should follow a normal distribution.")
+print("Predictors should not be highly correlated.")
+print("Concerns:")
+print("If the residual plot shows a pattern, we need to check some other regression models.")
+print("If residuals are not normal, we need to remove outliers or using a robust regression model.")
+```
+
+---

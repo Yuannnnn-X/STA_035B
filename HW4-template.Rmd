@@ -1,0 +1,296 @@
+---
+title: "Homework 4: Regression Inference"
+author: "Yuan Xie"
+date: "2/28/2025"
+output: pdf_document
+---
+
+# Introduction to Regression Inference
+
+We've used confidence intervals to quantify uncertainty about estimates. We've also run hypothesis tests using confidence intervals under the following procedure:
+
+1. Define Hypotheses:
+   - **Null Hypothesis:** The parameter is X.
+   - **Alternative Hypothesis:** The parameter is not X.
+
+2. Choose a p-value Cutoff ($\alpha$): Determine the significance level for the test.
+
+3. Construct a $(1-\alpha)$ Confidence Interval: Use bootstrap sampling to create the interval. For example, with a p-value cutoff of 0.01 (1%), construct a 99% confidence interval.
+
+4. Decision Rule:
+   - If the null hypothesis parameter X is within the confidence interval, the data are more consistent with the **null** hypothesis. (Fail to reject the null)
+   - If the null hypothesis parameter X is _not_ within the confidence interval, the data are more consistent with the **alternative** hypothesis.
+
+Recently, we've discussed using linear regression to make predictions based on correlated variables. For example, predicting a child's height based on parental heights.
+
+Combining these topics allows us to make powerful statements about our population using techniques such as:
+
+- Bootstrapped intervals for the true slope
+- Bootstrapped prediction intervals for y (given a particular value of x)
+
+This homework explores these methods.
+
+
+## The Data
+
+For this assignment, we'll use the **Medical Insurance Costs** dataset, the same dataset that we used for homework 3. This dataset contains medical information and costs billed by health insurance companies. It includes 1,338 entries with the following columns:
+
+- `age`: Age of the individual
+- `sex`: Gender of the individual
+- `bmi`: Body Mass Index
+- `children`: Number of children/dependents covered by insurance
+- `smoker`: Smoking status
+- `region`: Residential area in the US
+- `charges`: Medical insurance charges billed to the individual
+
+The goal is to investigate how an individual's BMI affects their medical insurance charges. Understanding this relationship can help in assessing risk factors and setting insurance premiums.
+
+```{r}
+# Load the libraries
+library(tidyverse)
+
+# Load the dataset
+insurance <- read_csv("Medical_Cost.csv")
+
+# Display the first few rows of the dataset
+insurance %>% head()
+```
+
+## Question 1 Exploratory Data Analysis (EDA)
+
+a. What are the key statistical properties of each variable in the dataset?
+
+```{r}
+insurance %>% summary()
+```
+
+````
+Answer:
+(Key statistical properties include mean, median, standard deviation, variance, minimum, 
+maximum, interquartile range, and so on.)
+````
+
+b. What trends do you observe in a scatter plot of BMI vs. Charges?
+
+```{r}
+insurance %>%
+  # set the x and y axes
+  ggplot(aes(x = bmi, y = charges)) +
+  # make the scatter plot and set the alpha here as 0.5
+  geom_point(alpha = 0.5) +
+  # Regression line
+  # set the method as linear model, y is a function about x, not show the grey error place
+  geom_smooth(method = "lm", formula = y ~ x, se = FALSE, color = "red") +
+  # name the title, x-axis and y-axis here
+  labs(
+    title = "Scatter Plot of BMI vs. Charges",
+    x = "BMI",
+    y = "Medical Insurance Charges"
+  ) 
+```
+
+````
+Answer:
+(According to the scatter plot and the regression line, BMI and Charges have a positive
+linear relationship. The charge is predicted to increase as the BMI increases.)
+````
+
+c. Could other factors influence Charges?
+```{r}
+smoker_avg_charges <- insurance %>%
+  # separate the status of smoker (yes or no)
+  group_by(smoker) %>%
+  # calculate the mean charges of smokers and non_smokers
+  summarise(mean_charges = mean(charges, na.rm = TRUE))
+# show the values of the two means in a tibble
+smoker_avg_charges
+```
+
+````
+Answer:
+(According to the data frame of Charges against Smoking Status, the smoking status seems
+to be another factor that influences Charges because the mean charges of smokers is much
+greater than that of non-smokers.)
+````
+
+
+## Question 2: Bootstrap Confidence Interval for the True slope
+
+a.	Perform a hypothesis test using confidence intervals to see if there is a linear relationship between BMI and Charges. State null Hypothesis and alternative hypothesis.
+
+````
+Answer:
+(H0: There is no linear relationship between BMI and Charges.
+ H1: There is a linear relationship between BMI and Charges.)
+````
+
+b.	Create `boots_slopes` that contains the slope of the best fit line for 1000 bootstrap resamples of insurance. Plot the distribution of these slopes.
+
+```{r}
+# 1000 bootstrap resamples means replicating 1000 times
+boots_slopes <- replicate(1000, {
+  # bootstrap resamples mean we need to put the sample back, replace = TRUE
+  sample_data <- insurance %>% sample_frac(size = 1, replace = TRUE)
+  model <- lm(charges ~ bmi, data = sample_data)
+  # the slope is the second coefficient of the regression model
+  coef(model)[2]
+})
+# make a tibble of the 1000 slopes
+boots_slopes_df <- tibble(slope = boots_slopes)
+# based on the tibble of bootstrapped slopes, plot a histogram
+ggplot(boots_slopes_df, aes(x = slope)) +
+  # separate into 30 groups
+  geom_histogram(bins = 30, fill = "red", color = "black", alpha = 0.8) +
+  # name the title, x-axis and y-axis here
+  labs(
+    title = "Distribution of Bootstrapped Slopes",
+    x = "Slope of BMI vs. Charges",
+    y = "Frequency"
+  ) 
+```
+
+c.	Use your resampled slopes to construct a 95% confidence interval for the true slope.
+
+```{r}
+confidence_interval1 <- quantile(boots_slopes, c(0.025, 0.975))
+confidence_interval1
+```
+
+d.	Interpret the confidence interval for the slope.
+
+````
+Answer:
+(This result means the confidence interval shown above includes the true slope with 95% 
+probability. If there is one unit increase in BMI, the expected medical charges will 
+increase 95% probably by the number of charges between the confidence interval.)
+````
+
+e.	Based on your confidence interval, would you reject or fail to reject the null hypothesis that the true slope is 0? Why? What p-value cutoff are you using?
+
+````
+Answer:
+(Based on my confidence interval, I will reject the null hypothesis H0 because 0 is actually not
+included in the 95% confidence interval for the true slope. The p-value cutoff here is 0.05.)
+````
+
+## Question 3: Bootstrap Prediction Interval
+
+a.	Define the function `fitted_value`. 
+
+```{r}
+# define the function with 2 parameters
+fitted_value <- function(dataset, bmi_value) {
+  # define the model as a linear model
+  model <- lm(charges ~ bmi, data = dataset)
+  # predict the corresponding charge by making a small tibble
+  prediction <- predict(model, newdata = tibble(bmi = bmi_value)) 
+  return(prediction)
+}
+```
+
+b.	Predict a charge for an individual whose BMI is 35.
+
+```{r}
+# BMI is 35 in this question
+charge_bmi_35 <- fitted_value(insurance, bmi_value = 35)
+charge_bmi_35
+```
+
+Hence, the charge is predicted to be 14978.49.
+
+c.	Create `boots_predictions` that contains the predicted charges based on a BMI of 35 for each regression line. Plot the distribution of these predictions.
+
+```{r}
+# 1000 bootstrap resamples means replicating 1000 times
+boots_predictions <- replicate(1000, {
+  # bootstrap resamples mean we need to put the sample back, replace = TRUE
+  sample_data <- insurance %>% sample_frac(size = 1, replace = TRUE)
+  model <- lm(charges ~ bmi, data = sample_data)
+  # predict all the resamples values
+  predict(model, newdata = tibble(bmi = 35)) 
+})
+# make a tibble of the 1000 predicted values
+boots_predictions_df <- tibble(predicted_charges = boots_predictions)
+# based on the tibble of predicted values, plot a histogram
+ggplot(boots_predictions_df, aes(x = predicted_charges)) +
+  # separate into 30 groups
+  geom_histogram(bins = 30, fill = "blue", color = "black", alpha = 0.8) +
+  # name the title, x-axis and y-axis here
+  labs(
+    title = "Distribution of Bootstrapped Predictions for BMI = 35",
+    x = "Predicted Medical Charges",
+    y = "Frequency"
+  ) 
+```
+
+d.	Create an approximate 95% confidence interval for the predictions.
+
+```{r}
+confidence_interval2 <- quantile(boots_predictions, c(0.025, 0.975))
+confidence_interval2
+```
+
+e.	Interpret the confidence interval for the prediction.
+
+````
+Answer:
+(The 95% confidence interval for the predicted medical charges when BMI = 35 is 
+shown above. This means the confidence interval includes the true predicted 
+medical charges with 95% probability when BMI = 35.)
+````
+
+## Question 4: Additional Analysis and Interpretation
+
+a.	What is the purpose of using confidence intervals in statistical inference?
+
+
+```
+Answer:
+(The purpose of using confidence intervals in statistical inference is to quantify the uncertainty 
+in estimating a population parameter. The two boundaries of the acceptance values can be directly
+shown to readers.)
+```
+
+b.	What potential limitations might arise when using this dataset for regression analysis?
+
+
+```
+Answer:
+(When we use regression analysis, samples should be independent and large enough. However,
+there are usually some outlier data which can greatly affect our analysis result. Also,
+we sometimes cannot be certain that samples are independent.)
+```
+
+c.	How does a prediction interval differ from the confidence interval?
+
+
+```
+Answer:
+(A confidence interval provides a range for the mean of the related variable at a given
+predictor value. A prediction interval provides a range for a single new observation of the 
+related variable at a given predictor value.)
+```
+
+d.	What factors might influence the accuracy of this model? How could it be improved?
+
+
+```
+Answer:
+(Some missing values and outliers may influence the accuracy of this model. We can firstly
+filter out those outliers and missing values before we start the regression analysis. Also,
+the actual relationship may be non-linear. We just assume that is linear. Some more sophisticated 
+methods should be applied to check whether the relationship is linear.)
+```
+
+
+---
+
+Provide written answers in full sentence(s) to all above questions.
+
+
+## Congratulations! You have finished Homework 4 !!!
+
+### Submission Instruction
+1. Submit the pdf document from this r markdown file onto Gradescope.
+2. Assign pages to corresponding questions when you submit your pdf onto Gradescope.
+

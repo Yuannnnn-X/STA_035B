@@ -1,0 +1,559 @@
+---
+title: "Homework 3: Linear Regression (Medical Insurance Cost Analysis)"
+author: "Yuan Xie"
+date: "2025-02-15"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+# Load required libraries
+library(tidyverse)
+```
+
+# Conceptual Problem
+
+
+## 1. True or False: Standard Units
+Indicate whether the statement about standard units is true or false and explain your reasoning.
+
+```{r}
+# define standard_units function from the lecture
+standard_units <- function(x) {
+  (x - mean(x)) / sd(x)  # z = (x-Mu)/sigma
+}
+# You may use r code/simulation to support your answer.
+```
+
+a. Standard units maintain the original scale of the data but shift the mean to zero.
+
+```
+Answer:
+(False. Standard units change not only the mean to 0 but also the variance to 1. 
+Hence, the scale of the data is also changed.)
+```
+
+b. The mean of all our data when converted into standard units is 0.
+
+```
+Answer:
+(True. Standard units change the mean to 0.)
+```
+
+c. The variance of all our data when converted into standard units is 1.
+
+```
+Answer:
+(True. Standard units change the variance to 1.)
+```
+
+d. Subtracting a constant, C, from our original data has no impact on the resultant data when converted to standard units.
+```
+Answer:
+(True. When subtracting a constant C, the mean will also be subtracted by the constant C.
+The variance will keep the same. Hence, there will be no impact on the resultant data.)
+```
+e. Multiplying our original data by a positive constant, C (>0), has no impact on the resultant data when converted to standard units.
+
+```
+Answer:
+(True. When multiplying our original data by a positive constant C, both the numerator and 
+denominator in (x-Mu)/Sigma will be multiplied by C. They will be cancelled. Therefore, it
+has no impact on the resultant data.)
+```
+ 
+## 2. True or False: Correlation Coefficient
+
+Indicate whether the statement about the correlation coefficient is true or false and explain your reasoning.
+
+a. The correlation coefficient measures only the strength of a linear relationship.
+
+```
+Answer:
+(False. The magnitude of correlation coefficient r can check the strength of a linear relationship.
+Also, the sign of r can help check the direction of the linear relationship.)
+```
+
+b. If the correlation coefficient is -1.0, an increase in one variable always results in a decrease in the other variable.
+
+```
+Answer:
+(True. "The correlation coefficient is -1.0" means that the regression line has a downward slope.
+Hence, an increase in one variable always results in a decrease in the other variable.)
+```
+c. The correlation coefficient remains unchanged if we standardize both x and y variables.
+
+```
+Answer:
+(True. According to the formula of correlation coefficient, standardizing both x and y 
+does not change their correlation. Standardizing cancels out the means and standard deviations, 
+leaving r unchanged.)
+```
+
+d. The correlation coefficient stays the same if we swap our x-axis and y-axis.
+
+```
+Answer:
+(True. According to the formula of correlation coefficient, the order of x and y does not
+matter. Graphically, the upward or downward slope will still be upward or downward after
+swapping the order of x and y.)
+```
+
+e. If we multiply our original data by a negative constant, the correlation coefficient remains the same.
+
+```
+Answer:
+(False. If we multiply our original data by a negative constant, the upward slope will 
+change to a downward slope while the downward slope will change to an upward slope. The
+correlation coefficient will definitely change.)
+```
+ 
+## 3. True or False: Slope of the Best-Fit Line
+Indicate whether the statement about the slope of our line of best fit is true or false and explain your reasoning.
+
+a. In original units, the slope has the unit: unit of y / unit of x.
+
+```
+Answer:
+(True. Slope means how much y changes per unit increase in x. Hence, the slope has the
+unit: unit of y / unit of x.)
+```
+
+b. In standard units, the slope is the correlation coefficient.
+
+```
+Answer:
+(True. This is because slope = r * (SD of y/SD of x). In standard units, SD of y and SD of x
+are both 1. Hence, slope = r in standard units.)
+```
+c. In original units, the slope changes when swapping x and y.
+```
+Answer:
+(True. This is because slope = r * (SD of y/SD of x). When swapping x and y, the numerator 
+and denominator of (SD of y/SD of x) are swapped. Hence, the slope changes.)
+```
+d. In standard units, a slope of 1 means our data is perfectly correlated.
+
+```
+Answer:
+(True. In standard units, a slope of 1 means r = 1. r = 1 means the data is perfectly
+correlated.)
+```
+
+e. In original units and standard units, the slope always has the same positive or negative sign.
+
+```
+Answer:
+(True. This is because slope = r * (SD of y/SD of x). (SD of y/SD of x) is always positive.
+Hence, the slope always has the same positive or negative sign.)
+```
+
+## 4. True or False: Intercept of the Best-Fit Line
+Indicate whether the statement about the intercept of our line of best fit is true or false and explain your reasoning.
+
+a. In original units, the intercept has the same unit as the y values.
+
+```
+Answer:
+(True. The intercept must have the same unit as y values because they are both on the y-axis.)
+```
+
+b. In original units, the intercept has the same unit as the x values.
+```
+Answer:
+(False. The intercept must have the same unit as y values instead of the x values.)
+```
+c. In original units, the slope and intercept have the same unit.
+
+```
+Answer:
+(False. The function of the line is y = intercept + slope * x. The slope and intercept have
+different units. Instead, the slope * x and intercept have the same unit.)
+```
+d. In standard units, the intercept for the regression line is 0.
+
+```
+Answer:
+(True. Intercept of the regression line  = average of y - slope * average of x.
+In standard units, average of y and average of x are both 0. Hence, the intercept is 0 here.)
+```
+
+e. In original units and standard units, the intercept always has the same numerical value.
+```
+Answer:
+(False. Intercept of the regression line  = average of y - slope * average of x.
+In original units, average of y and average of x are not always 0. The intercept
+in original units can be different from that in standard units.)
+```
+---
+
+# R Rroblem 
+
+We will analyze the relationship between different personal attributes and medical insurance charges using **linear regression** techniques.
+
+## Dataset
+
+The Medical Insurance Cost dataset (`medical_cost.csv`) contains information about individuals’ demographics, lifestyle factors, and their corresponding medical insurance charges. This dataset is originally from the book Machine Learning with R by Brett Lantz.
+
+**Dataset Variables**
+
+Each row in the dataset represents an individual and includes the following attributes:
+
+  - `age`: Age of the individual.
+  - `sex`: Gender (`male` or `female`).
+  - `bmi`: Body Mass Index, a measure of body fat based on height and weight.
+  - `children`: Number of children/dependents covered by the insurance.
+  - `smoker`: Smoking status (`yes` or `no`).
+  - `region`: Residential area in the U.S. (`northeast`, `northwest`, `southeast`, `southwest`).
+  - `charges`: The total medical insurance cost billed to the individual 
+
+
+```{r, eval = T}
+# import the dataset
+insurance <- read_csv("Medical_Cost.csv") %>% 
+  mutate(across(where(is.character), as.factor)) # change character vectors to factor variables
+glimpse(insurance)
+```
+
+
+## R Question 1. 
+
+### Question 1.a: Data Visualization 
+
+Create a **scatter plot** with **bmi** on the x-axis and **charges** on the y-axis.
+
+```{r}
+insurance %>% # input the dataset and use pipe to manipulate
+  # set the x and y axes
+  ggplot(aes(x = bmi, y = charges)) + 
+  # make the scatter plot and set the alpha here as 0.5
+  geom_point(alpha = 0.5) + 
+  # name the title, x-axis and y-axis here
+  labs(title = "Scatter Plot of Charges against BMI",
+       x = "BMI",
+       y = "Charges")
+```
+
+
+### Question 1.b: Correlation Estimation 
+
+Based on the scatter plot, estimate the **correlation coefficient** \( r \) between `bmi` and `charges`.  
+Does it appear closest to **0, 0.5,-0.5, 0.9 or -0.9**? Assign your estimate below.
+
+```{r}
+# use cor() function to calculate the correlation coefficient r
+r_estimate <- cor(insurance$bmi, insurance$charges) # Replace with your estimate
+# show the value of r_estimate here
+r_estimate
+```
+
+The correlation coefficient between `bmi` and `charges` is 0.198341 and it appears closest to 0.
+
+## R Question 2
+
+### R Question 2.a: Linear Regression and Prediction
+
+Fit a **linear regression model** to predict **charges** based on **bmi**. Overlay the regression line on the scatter plot. 
+
+```{r}
+# make a linear regression model
+model_charges_bmi <- lm(charges ~ bmi, data = insurance)
+# predict charges of bmi=30 with a small tibble
+mini_tibble <- tibble(bmi = 30)
+predicted_charge <- predict(model_charges_bmi, mini_tibble)
+
+insurance %>% # input the dataset and use pipe to manipulate
+  # set the x and y axes
+  ggplot(aes(x = bmi, y = charges)) +
+  # make the scatter plot and set the alpha here as 0.5
+  geom_point(alpha = 0.5) + 
+  # Regression line
+  # set the method as linear model, y is a function about x, not show the grey error place
+  geom_smooth(method = "lm", formula = y ~ x, color = "red", se = FALSE) +  
+  # add the predicting point with annotate() due to the warning in geom_point()
+  annotate("point", x = 30, y = predicted_charge, color = "blue", size = 5) +
+  # name the title, x-axis and y-axis here
+  labs(title = "Linear Regression of Charges against BMI",
+       x = "BMI",
+       y = "Charges")
+```
+
+
+
+
+
+### R Question 2.b: Model Evaluation 
+
+
+Consider the **scatter plot** you produced. Is **linear regression** appropriate for this data? Are any potential **non-linearity** and **outliers** observed?
+
+````
+Answer:
+(Linear regression helps basic analysis, but I do not think linear regression appropriate for 
+this data. The scatter plot and small r value suggest that the relationship between BMI and 
+charges is not perfectly linear. Several observations have much higher charges compared to 
+other regular charges.)
+````
+
+
+### R Question 2.c: Standardization and Visualization
+
+Create a scatter plot with **bmi** and **charges** in standard units and add predicted **charges** with using the linear regression model. The color of the dots of the real and predicted values should be different.
+
+
+```{r}
+# define the standardizing function here
+# it is also defined as the beginning of the homework
+standardize <- function(x) {
+  # z-score = (x-Mu) / Sigma
+  (x - mean(x)) / sd(x)
+}
+standard_insurance <- insurance %>%
+  # standardize bmi and charges columns here
+  mutate(standard_bmi = standardize(bmi),
+         standard_charges = standardize(charges))
+# make a standard linear regression model
+standard_model <- lm(standard_charges ~ standard_bmi, data = standard_insurance)
+# add predicted values in the standard_insurance tibble
+standard_insurance <- standard_insurance %>%
+  mutate(predicted_standard_charges = predict(standard_model))
+standard_insurance %>%
+  # set the x and y axes
+  ggplot(aes(x = standard_bmi, y = standard_charges)) + 
+  # make the scatter plot and set the alpha here as 0.5
+  geom_point(alpha = 0.5) +  
+  # Regression dot line in a different color
+  geom_point(aes(y = predicted_standard_charges), color = "purple", alpha = 0.5) +
+  # name the title, x-axis and y-axis here
+  labs(title = "Standardized Linear Regression of Charges against BMI",
+       x = "Standardized BMI",
+       y = "Standardized Charges")
+```
+
+
+### R Question 2.d: Comparison of Plots 
+
+Compare the scatter plots from **original units (2.a)** and **standardized units (2.c)**. Discuss **similarities and differences**.
+
+````
+Answer:
+(The positions of those points and the regression line look the same. The two regression lines
+have the same slope. However, the two regression lines have different intercepts on the y-axes.)
+````
+
+## R Question 3
+
+### R Question 3.a: Root Mean Squared Error (RMSE) Function 
+
+Define a function `rmse` to compute the **Root Mean Squared Error (RMSE)**.
+
+```{r}
+# name the function rmse with 2 parameters actual and predicted
+rmse <- function(actual, predicted) {
+  # the formula of RMSE is shown below
+  sqrt(mean((actual - predicted)^2))
+}
+```
+
+
+### R Question 3.b: Optimization of Regression Parameters 
+
+Find the optimal **slope** and **intercept** that minimize RMSE. *(Hint: try different starting points in optim())*
+
+```{r}
+# try 3 different starting points here
+# optim(par, fn, method, ...)
+
+# define the objective function to calculate RMSE
+rmse_fn = function(x) {
+  # the first parameter is the intercept
+  intercept <- x[1]
+  # the second parameter is the slope
+  slope <- x[2]
+  # compute predicted values using linear model
+  predictions <- intercept + slope * insurance$bmi
+  # return RMSE as the optimization objective
+  rmse(insurance$charges, predictions)
+ }
+    
+# set the first pair of initial parameters
+initial_para1 <- c(1000, 100)
+optimal_para1 <- optim(
+  # initial values
+  par = initial_para1,
+  # RMSE function needs to be minimized
+  fn = rmse_fn)
+# return the optimized intercept and slope
+(optimal_intercept1 <- optimal_para1$par[1])
+(optimal_slope1 <- optimal_para1$par[2])
+
+# set the second pair of initial parameters
+initial_para2 <- c(1100, 200)
+optimal_para2 <- optim(
+  # initial values
+  par = initial_para2,
+  # RMSE function needs to be minimized
+  fn = rmse_fn)
+# return the optimized intercept and slope
+(optimal_intercept2 <- optimal_para2$par[1])
+(optimal_slope2 <- optimal_para2$par[2])
+
+# set the second pair of initial parameters
+initial_para3 <- c(1200, 300)
+optimal_para3 <- optim(
+  # initial values
+  par = initial_para3,
+  # RMSE function needs to be minimized
+  fn = rmse_fn)
+# return the optimized intercept and slope
+(optimal_intercept3 <- optimal_para3$par[1])
+(optimal_slope3 <- optimal_para3$par[2])
+
+# the optimal intercept and slope is the means of the three intercepts and slopes
+(optimal_intercept = mean(c(optimal_intercept1, optimal_intercept2, optimal_intercept3)))
+(optimal_slope = mean(c(optimal_slope1, optimal_slope2, optimal_slope3)))
+```
+
+Overlay the **optimized regression line**.
+
+```{r}
+ ggplot(insurance, aes(x = bmi, y = charges)) +
+  geom_point(alpha = 0.5) +  
+  geom_abline(intercept = optimal_intercept, slope = optimal_slope, color = "red", linewidth = 1) +  
+  labs(title = "Optimized Linear Regression of Charges against BMI",
+       x = "BMI",
+       y = "Charges")
+```
+
+
+### R Question 3.c: Justification of Optimization Approach 
+
+Why does minimizing **RMSE** lead to the best-fit regression line? Discuss the relationship between **RMSE** and **least squares regression**.
+
+````
+Answer:
+(Minimizing root mean Squared error (RMSE) leads to the best-fit regression line because
+RMSE is directly related to the least squares regression. According to the formulae of RMSE
+and least squares (SSE), least squares (SSE) = RMSE^2 * n. Hence, the minimized RMSE indicates
+the minimized least squares.)
+````
+
+
+### R Question 3.d: Alternative Error Metrics 
+
+Which of the following **error metrics** would yield the same slope and intercept as RMSE?
+
+1. `sum(abs(errors))`
+2. `sum(errors^2)`
+3. `mean(abs(errors))`
+4. `mean(errors^2)`
+
+```{r}
+# 2 and 4 are the correct ones because they are directly related to RMSE
+equivalent_metrics <- c("2nd", "4th")  # Choose the correct ones
+equivalent_metrics
+```
+
+
+## R Question 4.
+
+### Question 4.a: Exploring Another Relationship 
+
+Create a scatter plot of **age vs. charges**, fit a regression line, and overlay the regression line.
+
+```{r}
+insurance %>% # input the dataset and use pipe to manipulate
+  # set the x and y axes
+  ggplot(aes(x = age, y = charges)) +
+  # make the scatter plot and set the alpha here as 0.5
+  geom_point(alpha = 0.5) + 
+  # Regression line
+  # set the method as linear model, y is a function about x, not show the grey error place
+  geom_smooth(method = "lm", formula = y ~ x, color = "blue", se = FALSE) +  
+  # name the title, x-axis and y-axis here
+  labs(title = "Linear Regression of Age against Charges",
+       x = "Age",
+       y = "Charges")
+```
+
+### Question 4.b: Analyze the relationship.
+
+Assuming linear regression is a reasonable model, indicate whether the following statements are true or false. Explain your reasoning.
+
+1. The regression line suggests that older individuals tend to have higher medical charges on average.
+
+````
+Answer:
+(True. The regression line has a positive slope and this means medical charges tend to 
+increase as age increases.)
+````
+
+2. There is a clear and strong linear relationship between age and medical charges.
+
+```{r}
+# use cor() function to calculate the correlation coefficient r
+r_estimate2 <- cor(insurance$age, insurance$charges) # Replace with your estimate
+# show the value of r_estimate here
+r_estimate2
+```
+
+````
+Answer:
+(False. The correlation coefficient is 0.2990082 which is not large enough.
+Therefore, the linear relationship is not quite clear or strong.)
+````
+
+3. The data shows multiple clusters of points, indicating that age alone may not fully explain medical charges.
+
+````
+Answer:
+(True. The clusters indicate that age alone is insufficient to explain medical expenses.
+There may be some other more important factors or causes.)
+````
+
+4. A randomly selected individual with an age of 40 will always have a medical charge close to the regression line’s prediction.
+
+````
+Answer:
+(False. The regression can only show the trend of average cases. However, a random individual's 
+charge may significantly deviate from the regression line.)
+````
+
+5. If we standardize both age and medical charges, the regression line will still have the same correlation coefficient.
+
+````
+Answer:
+(True. Standardization changes the sample data into z-scores, but the correlation coefficient
+stays the same.)
+````
+
+6. Since the regression line is slightly increasing, it suggests that increasing age causes higher medical expenses.
+
+````
+Answer:
+(False. The regression line can only show the correlation. However, it cannot imply the causation.)
+````
+
+7. If an individual has the same age as another but much higher charges, the model may not accurately predict their medical costs.
+
+````
+Answer:
+(True. The regression line only shows the average trend. Outliers can have a big effect on
+the correlation.)
+````
+
+8. The spread of data points suggests that there are other important variables influencing medical charges.
+
+````
+Answer:
+(True. The wide spread of points shows that medical charges can change greatly even for different
+people of the same age. There may be other important factors.)
+````
+
+---
+
+## Congratulations! You have finished Homework 3 !!!
+
+### Submission Instruction
+1. Submit the pdf document from this r markdown file onto Gradescope.
+2. Assign pages to corresponding questions when you submit your pdf onto Gradescope.
+
